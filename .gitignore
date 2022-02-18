@@ -129,9 +129,13 @@ dmypy.json
 .pyre/
 
 # files
-.ipynb/
+.ipynb
+.xlsx
+.csv
+.gz
+
+# folders
 .idea/
-.xlsx/
-.csv/
+data/*
 
 
