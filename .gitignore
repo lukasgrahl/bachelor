@@ -131,6 +131,7 @@ dmypy.json
 # files
 .ipynb/
 .idea/
-# folder
-notebooks/
-data/
+.xlsx/
+.csv/
+
+
