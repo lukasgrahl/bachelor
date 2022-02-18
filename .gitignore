@@ -129,8 +129,8 @@ dmypy.json
 .pyre/
 
 # files
-.ipynb
-
+.ipynb/
+.idea/
 # folder
 notebooks/
 data/
