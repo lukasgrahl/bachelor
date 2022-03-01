@@ -66,6 +66,12 @@ cast_dict = {
 }
 
 
+def apply_date_to_week(x):
+    # return apply_datetime_format(x).isocalendar()[0:2]
+    x = apply_datetime_format(x).isocalendar()[0:2]
+    return str(x[0]) + str(x[1])
+
+
 def apply_datetime_format(x,
                           ret_time: bool = False,
                           **kwargs):
