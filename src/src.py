@@ -1,13 +1,12 @@
-import numpy as np
 import pandas as pd
+import numpy as np
 
 import matplotlib.pyplot as plt
-
 from scipy import stats
-from statsmodels.tsa.stattools import adfuller
 from statsmodels.stats.diagnostic import het_white
+from statsmodels.tsa.stattools import adfuller
 
-from utils.utils import arr_log_return, arr_log_transform
+from utils.utils import arr_log_return, arr_log_transform, arr_inv_log_returns
 
 
 class StatsTest:
@@ -120,6 +119,33 @@ class StatsTest:
 
         return dict(zip(cols, normality))
 
+    def df_heteroskedasticity_white(self,
+                                    y,
+                                    X):
+        # H0: Homoscedasticity is present (residuals are equally scattered)
+
+        list_1 = []
+        for item in np.mean(X, axis=0):
+            if item == 1:
+                list_1.append(True)
+            else:
+                pass
+        assert len(list_1) == 1, "Het White test requires a constant in X data"
+
+        wtest = het_white(y, X)
+        labels = ['Test Statistic', 'Test Statistic p-value', 'F-Statistic', 'F-Test p-value']
+        test_result = dict(zip(labels, wtest))
+
+        bool_result = test_result["Test Statistic p-value"] < self.significance
+
+        self._line_plot(arr=y, is_test=bool_result)
+        if self.print_results:
+            print("Test for Heteroskedasticity")
+            print(f"Test p-value: {test_result['Test Statistic p-value']}")
+            print(f"Heteroskedasticity is present: {bool_result}")
+
+        return bool_result
+
 
 class DataTransformation:
 
@@ -156,34 +182,111 @@ class DataTransformation:
         else:
             self.dict_[self.neg_dist_trans_key] = new_dict
 
-    def df_log_returns(self,
-                       cols: list):
+    def df_transform(self,
+                     cols: list,
+                     transformation: str = "log_return",
+                     dict_trans_name: str = None):
+
+        """
+
+        :param dict_trans_name: name of transformation in data_dict, default: dict_trans_name = transformation
+        :param cols: columns to apply transformation on
+        :param transformation: log_return, log_trans
+        :return: df and data_dict will be altered internally, call them as class attributed after transforming
+        """
         dist_translation = []
 
         for col in cols:
-            is_trans, self.df[col] = arr_log_return(self.df[col])
+            if transformation == "log_return":
+                is_trans, self.df[col] = arr_log_return(self.df[col])
+                pass
+            elif transformation == "log_trans":
+                is_trans, self.df[col] = arr_log_transform(self.df[col])
+                pass
             dist_translation.append(is_trans)
 
         dist_translation = dict(zip(cols, dist_translation))
         self._update_neg_trans_dict(dist_translation)
 
-        log_return = dict(zip(cols, list([True] * len(cols))))
-        self.dict_.update(log_return=log_return)
+        trans_cols = dict(zip(cols, list([True] * len(cols))))
+
+        if dict_trans_name is None:
+            self.dict_[transformation] = trans_cols
+        else:
+            self.dict_[dict_trans_name] = trans_cols
 
         pass
 
-    def df_log_transform(self,
-                         cols: list):
-        trans_dist = []
 
-        for col in cols:
-            is_trans, self.df[col] = arr_log_transform(self.df[col])
-            trans_dist.append(is_trans)
+class ModelValidation:
 
-        trans_dist = dict(zip(cols, trans_dist))
-        self._update_neg_trans_dict(trans_dist)
+    def __init__(self,
+                 X_validate,
+                 y_validate,
+                 model,
+                 data_dict):
 
-        log_trans = dict(zip(cols, list([True] * len(cols))))
-        self.dict_.update(log_trans=log_trans)
+        self.X = X_validate
+        self.y = y_validate
+        self.model = model
+        self.dict_ = data_dict
 
+        self.pred = None
+        self.resid = None
+        self.resid_inv = None
+        self.pred_inv = None
+        self.y_inv = None
+
+        self.mse = None
+        self.mae = None
+        self.r2 = None
+
+        self._get_predictions()
+        self._invers_trans_y()
         pass
+
+    def _get_predictions(self):
+        self.pred = self.model.predict(self.X)
+        pass
+
+    def _invers_trans_y(self):
+        self.pred_inv = arr_inv_log_returns(self.pred)
+        self.y_inv = arr_inv_log_returns(self.y)
+        pass
+
+    def _get_resids(self):
+        self.resid = self.y - self.pred
+        self.resid_inv = self.y_inv - self.pred_inv
+        pass
+
+    def _plot_pred_vs_true(self):
+        plt.figure(figsize=(16, 5))
+        plt.plot(self.y_inv)
+        plt.plot(self.pred_inv)
+        plt.legend(["y_test", "y_pred"])
+        plt.show()
+
+    def get_model_performance(self):
+        from sklearn.metrics import r2_score
+        self.mse = round(np.mean((self.pred_inv - self.y_inv) ** 2), 8)
+        self.mae = round(np.mean(abs(self.pred_inv - self.y_inv)), 8)
+        self.r2 = round(r2_score(self.y_inv, self.pred_inv), 4)
+
+        self._plot_pred_vs_true()
+
+        print("Validation Scores")
+        print(f'mean squared error: {self.mse}')
+        print(f'mean absolute error: {self.mae}')
+        print(f'R2: {self.r2}')
+
+    def analyse_resids(self,
+                       **kwargs):
+        self._get_resids()
+
+        stest = StatsTest(**kwargs)
+        stest.arr_stationarity_adfuller(self.resid)
+        stest.arr_test_normality(self.resid)
+        stest.df_heteroskedasticity_white(y=self.resid, X=self.X)
+        pass
+
+

@@ -170,3 +170,27 @@ def cast_data(func):
         return df
 
     return wrapper
+
+
+def apply_textmonth_to_nummonth(x):
+    month_dict = {
+        "Dec": 12,
+        "Nov": 11,
+        "Oct": 10,
+        "Sep": 9,
+        "Aug": 8,
+        "Jul": 7,
+        "Jun": 6,
+        "May": 5,
+        "Apr": 4,
+        "Mar": 3,
+        "Feb": 2,
+        "Jan": 1
+    }
+
+    x = x.split(" ")
+    x[0] = int(month_dict[x[0]])
+    x[1] = int(x[1][:-1])
+    x[2] = int(x[2])
+
+    return dt.datetime(month=x[0], day=x[1], year=x[2])

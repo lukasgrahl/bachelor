@@ -1,12 +1,9 @@
-import datetime as dt
-
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from sklearn.model_selection import train_test_split
-from statsmodels.stats.diagnostic import het_white
-
-from matplotlib import pyplot as plt
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from settings import random_state
 from utils.cast_data import apply_date_to_week
@@ -21,30 +18,6 @@ def cut_to_weekly_data(df: pd.DataFrame,
         df = df[relevant_cols]
 
     return df.dropna(axis=0).drop_duplicates("week")
-
-
-def apply_textmonth_to_nummonth(x):
-    month_dict = {
-        "Dec": 12,
-        "Nov": 11,
-        "Oct": 10,
-        "Sep": 9,
-        "Aug": 8,
-        "Jul": 7,
-        "Jun": 6,
-        "May": 5,
-        "Apr": 4,
-        "Mar": 3,
-        "Feb": 2,
-        "Jan": 1
-    }
-
-    x = x.split(" ")
-    x[0] = int(month_dict[x[0]])
-    x[1] = int(x[1][:-1])
-    x[2] = int(x[2])
-
-    return dt.datetime(month=x[0], day=x[1], year=x[2])
 
 
 def translate_neg_dist(arr):
@@ -65,6 +38,10 @@ def arr_log_transform(arr: pd.Series):
     return is_trans, np.log1p(arr)
 
 
+def arr_inv_log_returns(arr):
+    return np.expm1(arr)
+
+
 def shift_var_relative_to_df(df_in,
                              shift_var: str,
                              new_var_name: str = [None],
@@ -81,36 +58,6 @@ def shift_var_relative_to_df(df_in,
             df[shift_var] = df[shift_var].shift(lag)
 
     return df.dropna(axis=0)
-
-
-def df_heteroskedasticity_white(y,
-                                X,
-                                significance_level: float = 0.05,
-                                print_results: bool = True):
-    # H0: Homoscedasticity is present (residuals are equally scattered)
-
-    list_1 = []
-    for item in np.mean(X, axis=0):
-        if item == 1:
-            list_1.append(True)
-        else:
-            pass
-    assert len(list_1) == 1, "Het White test requires a constant in X data"
-
-    wtest = het_white(y, X)
-    labels = ['Test Statistic', 'Test Statistic p-value', 'F-Statistic', 'F-Test p-value']
-    test_result = dict(zip(labels, wtest))
-
-    bool_result = test_result["Test Statistic p-value"] < significance_level
-
-    plt.scatter(np.sum(X, axis=1), y)
-
-    if print_results:
-        print("Test for Heteroskedasticity")
-        print(f"Test p-value: {test_result['Test Statistic p-value']}")
-        print(f"Heteroskedasticity is present: {bool_result}")
-
-    return bool_result
 
 
 def tts_data(df_in,
@@ -144,3 +91,35 @@ def tts_data(df_in,
         tts[i] = tts[i].reset_index(drop=True)
 
     return tts
+
+
+def lag_correl(df,
+               cols,
+               col_predicted: str,
+               max_lag: int = 15,
+               plot_fig: bool = False):
+    corr_list = []
+
+    for col in cols:
+        fig = plt.figure()
+        col_corr = plt.xcorr(df[col], df[col_predicted], maxlags=max_lag, usevlines=True, normed=True, lw=2,
+                             color="black")
+        corr_ = pd.DataFrame(col_corr[1], index=col_corr[0], columns=["lag_corr"])
+        highest_lag = corr_.loc[:-1].sort_values("lag_corr", ascending=True).iloc[-1].name
+
+        plt.title(col)
+        if not plot_fig:
+            plt.close(fig)
+
+        corr_list.append([col, highest_lag])
+
+    return corr_list
+
+
+def get_variance_inflation_factor(df,
+                                  cols,
+                                  col_pred):
+    vif = [variance_inflation_factor(df[cols].values, i) for i in range(df[cols].shape[1])]
+    vif = pd.DataFrame(index=cols, data=vif, columns=["VIF"])
+    vif = vif.join(df[cols].corrwith(df[col_pred]).rename(f"corr_{col_pred}"))
+    return vif.sort_values("VIF")
