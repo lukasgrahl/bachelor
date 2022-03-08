@@ -260,7 +260,7 @@ class ModelValidation:
         pass
 
     def _plot_pred_vs_true(self):
-        plt.figure(figsize=(16, 5))
+        plt.figure(figsize=(20, 5))
         plt.plot(self.y_inv)
         plt.plot(self.pred_inv)
         plt.legend(["y_test", "y_pred"])

@@ -1,8 +1,10 @@
 import pandas as pd
+import datetime as dt
 
 import os
 import pickle
 
+from src.src import ModelValidation
 from utils.cast_data import cast_data
 
 
@@ -81,3 +83,27 @@ def save_file(data,
     else:
         raise KeyError(f"File tye unkonw {file_name.split('.')[-1]}")
         pass
+
+
+def save_model(df,
+               model,
+               mval: ModelValidation,
+               data_dict: dict,
+               name: str,
+               file_path: str):
+
+    dict_ = data_dict.copy()
+    dict_.update(model={"mse": mval.mse,
+                        "mae": mval.mae,
+                        "r2": mval.r2,
+                        "resid": mval.resid})
+
+    timestamp = str(dt.datetime.utcnow())[:10]
+
+    print(f'Are you sure you want to save model as: f"{timestamp}_{name}_model.pkl"? (y/n)')
+    conf = input()
+    if conf == "y":
+        save_file(data=df, file_name=f"{timestamp}_{name}_df.csv", file_path=file_path)
+        save_file(data=model, file_name=f"{timestamp}_{name}_model.pkl", file_path=file_path)
+        save_file(data=dict_, file_name=f"{timestamp}_{name}_data_dict.pkl", file_path=file_path)
+    pass

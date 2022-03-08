@@ -62,7 +62,8 @@ cast_dict = {
     'vxoh': float,
     'vxol': float,
     'vxoo': float,
-    'week': str
+    'week': str,
+    'goog_sent': float,
 }
 
 
@@ -74,7 +75,7 @@ def apply_date_to_week(x):
 
 def apply_datetime_format(x,
                           ret_time: bool = False,
-                          **kwargs):
+                          europe_time_slash: bool = False):
     x = str(x)
     try:
         x = dt.datetime.strptime(x, "%Y-%m-%d")
@@ -98,7 +99,10 @@ def apply_datetime_format(x,
         pass
 
     try:
-        x = dt.datetime.strptime(x, "%m/%d/%Y")
+        if europe_time_slash:
+            x = dt.datetime.strptime(x, "%d/%m/%Y")
+        else:
+            x = dt.datetime.strptime(x, "%m/%d/%Y")
         if ret_time is False:
             return x.date()
     except ValueError:
@@ -142,9 +146,30 @@ def apply_datetime_format(x,
     raise ValueError(f"{x} format unknonw")
 
 
+def check_datetime_sanity(arr,
+                          order: str = "past_to_future"):
+    """
+    Checking order of datetime ordered df
+    :param arr: datetime arr
+    :param order: "past_to_future", "future_to_past"
+    """
+    _ = (apply_datetime_format(arr.iloc[-1]) - apply_datetime_format(arr.iloc[0])).days
+    if order == "past_to_future":
+        assert _ > 0, f"Datetime col is not order {order}"
+    elif order == "future_to_past":
+        assert _ < 0, f"Datetime col is not order {order}"
+    pass
+
+
 def cast_data(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+        if "europe_time_slash" in kwargs.keys():
+            europe_time_slash = kwargs["europe_time_slash"]
+            kwargs.pop("europe_time_slash")
+        else:
+            europe_time_slash = False
+
         df = func(*args, **kwargs)
         assert "file_name" in kwargs.keys(), "Specify filname as kwargs"
 
@@ -156,7 +181,8 @@ def cast_data(func):
         for col in df.columns:
             try:
                 if cast_dict[col] == "date":
-                    df[col] = df[col].apply(lambda x: apply_datetime_format(x, **kwargs))
+                    df[col] = df[col].apply(lambda x: apply_datetime_format(x, europe_time_slash=europe_time_slash))
+                    check_datetime_sanity(arr=df[col], order="past_to_future")
                 else:
                     df[col] = df[col].astype(cast_dict[col])
             except Exception as e:

@@ -5,6 +5,8 @@ from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+import statsmodels.api as sm
+
 from settings import random_state
 from utils.cast_data import apply_date_to_week
 
@@ -71,6 +73,11 @@ def tts_data(df_in,
     df = df_in.copy()
     y = df[y].copy()
     X = df[x].copy()
+
+    _ = X.apply(pd.Series.nunique) == 1
+    if len(_[_]) > 0:
+        print(f"Constant columns exist: {list(_[_].index)}")
+        add_const = False
     if add_const:
         X["intercept"] = list([1] * len(X))
 
@@ -97,7 +104,7 @@ def lag_correl(df,
                cols,
                col_predicted: str,
                max_lag: int = 15,
-               plot_fig: bool = False):
+               show_fig: bool = False):
     corr_list = []
 
     for col in cols:
@@ -108,7 +115,7 @@ def lag_correl(df,
         highest_lag = corr_.loc[:-1].sort_values("lag_corr", ascending=True).iloc[-1].name
 
         plt.title(col)
-        if not plot_fig:
+        if not show_fig:
             plt.close(fig)
 
         corr_list.append([col, highest_lag])
@@ -122,4 +129,22 @@ def get_variance_inflation_factor(df,
     vif = [variance_inflation_factor(df[cols].values, i) for i in range(df[cols].shape[1])]
     vif = pd.DataFrame(index=cols, data=vif, columns=["VIF"])
     vif = vif.join(df[cols].corrwith(df[col_pred]).rename(f"corr_{col_pred}"))
-    return vif.sort_values("VIF")
+    return vif.sort_values(f"corr_{col_pred}")
+
+
+def orthogonalise_vars(df_in,
+                       X: str,
+                       y: str,
+                       show_fig: bool = True):
+    df = df_in.copy()
+    df["intercept"] = list([1] * len(df))
+    ortho = sm.OLS(endog=df[y], exog=df[[X, "intercept"]]).fit()
+
+    if show_fig is True:
+        plt.figure(figsize=(20, 4))
+        plt.plot(ortho.resid, marker="o", lw=.5)
+        plt.plot(df[X])
+
+    df[y] = ortho.resid
+
+    return df
