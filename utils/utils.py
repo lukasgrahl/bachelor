@@ -112,11 +112,13 @@ def lag_correl(df,
         col_corr = plt.xcorr(df[col], df[col_predicted], maxlags=max_lag, usevlines=True, normed=True, lw=2,
                              color="black")
         corr_ = pd.DataFrame(col_corr[1], index=col_corr[0], columns=["lag_corr"])
-        highest_lag = corr_.loc[:-1].sort_values("lag_corr", ascending=True).iloc[-1].name
+        highest_lag = corr_.iloc[0:].sort_values("lag_corr", ascending=True).iloc[-1].name
 
         plt.title(col)
         if not show_fig:
             plt.close(fig)
+        else:
+            plt.show()
 
         corr_list.append([col, highest_lag])
 
