@@ -39,3 +39,32 @@ def corr_heatmap(df: pd.DataFrame,
     plt.tight_layout()
     if not show_fig:
         plt.close(fig)
+
+
+def kde_plot(arr,
+             **kwargs):
+    if "figsize" in kwargs.keys():
+        plt.figure(figsize=kwargs["figsize"])
+        kwargs.pop("figsize")
+    else:
+        plt.figure(figsize=(5, 4))
+    sns.kdeplot(arr, **kwargs)
+    if type(arr) == pd.Series:
+        plt.title(arr.name)
+    plt.tight_layout()
+    plt.show()
+    pass
+
+def corr_plot(x,
+              vals,
+              show_plot,
+              title=None,
+              **kwargs):
+    if show_plot:
+        plt.figure(**kwargs)
+        plt.bar(x, vals, width=.2, color="black", **kwargs)
+        plt.plot(x, list([0] * len(x)), color="black", lw=.8, **kwargs)
+        plt.title(title)
+        plt.tight_layout()
+        plt.show()
+    pass

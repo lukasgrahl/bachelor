@@ -9,6 +9,7 @@ import statsmodels.api as sm
 
 from settings import random_state
 from utils.cast_data import apply_date_to_week
+from utils.plotting import corr_plot
 
 
 def cut_to_weekly_data(df: pd.DataFrame,
@@ -155,6 +156,39 @@ def lag_correl(df,
         corr_list.append([col, highest_lag])
 
     return corr_list
+
+
+def cross_corr(arr_x,
+               arr_y,
+               no_lags: int = 10,
+               **kwargs):
+    cross_corr = []
+    lags = range(-no_lags, no_lags + 1)
+    for i in lags:
+        cross_corr.append(arr_x.shift(i).corr(arr_y))
+
+    corr_plot(lags, cross_corr, title=arr_x.name, **kwargs)
+
+    return list(lags), cross_corr
+
+
+def df_cross_corr(df,
+                  cols_x,
+                  pred_y,
+                  no_lags: int = 10,
+                  **kwargs):
+    corr_res = []
+    for col in cols_x:
+        lags, corr = cross_corr(df[col], df[pred_y], **kwargs)
+        corr_res.append(corr)
+
+    df_corr = pd.DataFrame(corr_res, index=cols_x, columns=lags).transpose()
+    df_corr = df_corr.loc[0:].abs()
+
+    results = []
+    for col in cols_x:
+        results.append([col, df_corr[col].idxmax(), round(df_corr[col].max(), 3)])
+    return results
 
 
 def get_variance_inflation_factor(df,
