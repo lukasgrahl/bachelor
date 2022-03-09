@@ -23,43 +23,74 @@ def cut_to_weekly_data(df: pd.DataFrame,
 
 
 def translate_neg_dist(arr):
-    if min(arr) < 0:
+    if min(arr) <= 0:
         return True, arr + (abs(arr.min()) + 1)
     else:
         return False, arr
     pass
 
 
+def df_log_return(df_in: pd.DataFrame,
+                  cols: list):
+    df = df_in.copy()
+    dist_trans = []
+
+    for col in cols:
+        is_trans, df[col] = arr_log_return(df[col])
+        dist_trans.append(is_trans)
+
+    dist_translation = dict(zip(cols, dist_trans))
+    log_returns = dict(zip(cols, list([True] * len(cols))))
+
+    df.dropna(inplace=True)
+
+    return df, dist_translation, log_returns
+
+
+def update_dict(dict_in: dict,
+                update_keys: list,
+                update_vals: list):
+    dict_ = dict_in.copy()
+
+    for i, key in enumerate(update_keys):
+        dict_[key] = update_vals[i]
+
+    return dict_
+
+
 def arr_log_return(arr: pd.Series):
+    # Assumption, df is ordered past to future
     is_trans, arr = translate_neg_dist(arr)
-    return is_trans, np.log1p(arr / arr.shift(1))
-
-
-def arr_log_transform(arr: pd.Series):
-    is_trans, arr = translate_neg_dist(arr)
-    return is_trans, np.log1p(arr)
+    return is_trans, np.log(1 + arr.pct_change())
 
 
 def arr_inv_log_returns(arr):
-    return np.expm1(arr)
+    return np.exp(arr)
 
 
 def shift_var_relative_to_df(df_in,
-                             shift_var: str,
-                             new_var_name: str = [None],
-                             no_lags: int = [-1]):
-    if max(no_lags) > 0:
-        print("Applying shifts in future")
-    assert len(no_lags) == len(new_var_name), "Please name new cols"
-
+                             shift_var: list,
+                             new_var_name: list = None,
+                             no_lags: int = [1]):
     df = df_in.copy()
-    for i, lag in enumerate(no_lags):
-        if new_var_name != [None]:
-            df[new_var_name[i]] = df[shift_var].shift(lag)
-        else:
-            df[shift_var] = df[shift_var].shift(lag)
 
-    return df.dropna(axis=0)
+    if max(no_lags) < 0:
+        print("Applying shifts in future")
+
+    if new_var_name is None:
+        assert len(no_lags) == len(shift_var), "shift_var and no_lags don't correspond"
+        for i, var in enumerate(shift_var):
+            df[var] = df[var].shift(no_lags[i])
+
+        return df.dropna(axis=0)
+
+    if new_var_name is not None:
+        assert len(no_lags) == len(new_var_name) == len(shift_var), "Please name new cols"
+
+        for i, var in enumerate(shift_var):
+            df[new_var_name[i]] = df[var].shift(no_lags[i])
+
+        return df.dropna(axis=0)
 
 
 def tts_data(df_in,
@@ -112,6 +143,7 @@ def lag_correl(df,
         col_corr = plt.xcorr(df[col], df[col_predicted], maxlags=max_lag, usevlines=True, normed=True, lw=2,
                              color="black")
         corr_ = pd.DataFrame(col_corr[1], index=col_corr[0], columns=["lag_corr"])
+        print(corr_)
         highest_lag = corr_.iloc[0:].sort_values("lag_corr", ascending=True).iloc[-1].name
 
         plt.title(col)
