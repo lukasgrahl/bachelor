@@ -140,3 +140,4 @@ data/*
 
 # file
 test.py
+notebooks/03-KS_LZ_TRAIN_LGB_DeltaMed_perc.ipynb
