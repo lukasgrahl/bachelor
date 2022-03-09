@@ -74,7 +74,7 @@ class StatsTest:
             print(f"Test-stats: {test_stat}")
             print(f"Time series is stationary: {is_stationary}")
             pass
-        return pvalue < self.significance
+        return is_stationary
 
     def arr_test_normality(self,
                            arr,
@@ -95,7 +95,7 @@ class StatsTest:
             print(f"Test-stats: {test_stat}")
             print(f"Series is normally distributed: {is_normal}")
 
-        return pvalue > self.significance
+        return is_normal
 
     def df_test_stationarity(self,
                              df_in: pd.DataFrame,
