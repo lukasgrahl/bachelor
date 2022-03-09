@@ -6,7 +6,8 @@ from scipy import stats
 from statsmodels.stats.diagnostic import het_white
 from statsmodels.tsa.stattools import adfuller
 
-from utils.utils import arr_log_return, arr_log_transform, arr_inv_log_returns
+from utils.plotting import kde_plot
+from utils.utils import arr_inv_log_returns
 
 
 class StatsTest:
@@ -45,6 +46,7 @@ class StatsTest:
                  is_test):
 
         if self.plot is True:
+
             fig, ax = plt.subplots()
             _ = stats.probplot(arr, dist="norm", plot=ax)
             if type(arr) == pd.core.series.Series:
@@ -147,77 +149,6 @@ class StatsTest:
         return bool_result
 
 
-class DataTransformation:
-
-    def __init__(self,
-                 df_in: pd.DataFrame,
-                 data_dict: dict,
-                 neg_dist_trans_key: str = "neg_dist_trans"):
-
-        self.df = df_in.copy()
-        self.dict_ = data_dict.copy()
-        self.neg_dist_trans_key = neg_dist_trans_key
-        pass
-
-    def _update_neg_trans_dict(self,
-                               new_dict,
-                               some_value=False):
-
-        if self.neg_dist_trans_key in self.dict_.keys():
-            old_dict = self.dict_[self.neg_dist_trans_key]
-
-            for item in new_dict.keys():
-                if item in old_dict.keys():
-                    if old_dict[item] == some_value:
-                        old_dict[item] = new_dict[item]
-                    else:
-                        old_dict[item] = old_dict[item]
-                else:
-                    old_dict[item] = new_dict[item]
-
-            updated_dict = old_dict.copy()
-
-            # updated_dict = {item: new_dict[item] if old_dict[item] == False else old_dict[item] for item in new_dict.keys()}
-            self.dict_[self.neg_dist_trans_key] = updated_dict
-        else:
-            self.dict_[self.neg_dist_trans_key] = new_dict
-
-    def df_transform(self,
-                     cols: list,
-                     transformation: str = "log_return",
-                     dict_trans_name: str = None):
-
-        """
-
-        :param dict_trans_name: name of transformation in data_dict, default: dict_trans_name = transformation
-        :param cols: columns to apply transformation on
-        :param transformation: log_return, log_trans
-        :return: df and data_dict will be altered internally, call them as class attributed after transforming
-        """
-        dist_translation = []
-
-        for col in cols:
-            if transformation == "log_return":
-                is_trans, self.df[col] = arr_log_return(self.df[col])
-                pass
-            elif transformation == "log_trans":
-                is_trans, self.df[col] = arr_log_transform(self.df[col])
-                pass
-            dist_translation.append(is_trans)
-
-        dist_translation = dict(zip(cols, dist_translation))
-        self._update_neg_trans_dict(dist_translation)
-
-        trans_cols = dict(zip(cols, list([True] * len(cols))))
-
-        if dict_trans_name is None:
-            self.dict_[transformation] = trans_cols
-        else:
-            self.dict_[dict_trans_name] = trans_cols
-
-        pass
-
-
 class ModelValidation:
 
     def __init__(self,
@@ -225,7 +156,6 @@ class ModelValidation:
                  y_validate,
                  model,
                  data_dict):
-
         self.X = X_validate
         self.y = y_validate
         self.model = model
@@ -288,5 +218,3 @@ class ModelValidation:
         stest.arr_test_normality(self.resid)
         stest.df_heteroskedasticity_white(y=self.resid, X=self.X)
         pass
-
-
