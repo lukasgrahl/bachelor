@@ -137,6 +137,7 @@ dmypy.json
 # folders
 .idea/
 data/*
+bachelor_env/*
 
 # file
 test.py
