@@ -45,8 +45,8 @@ class StatsTest:
         pass
 
     def _qq_kde_plot(self,
-                 arr,
-                 is_test):
+                     arr,
+                     is_test):
 
         if self.plot is True:
 
@@ -59,6 +59,12 @@ class StatsTest:
             plt.tight_layout()
             plt.show()
         pass
+
+    def _add_constant_to_data(self,
+                              df_in: pd.DataFrame):
+        df = df_in.copy()
+        df["constant"] = list([1] * len(df))
+        return df
 
     def arr_stationarity_adfuller(self,
                                   arr,
@@ -127,17 +133,24 @@ class StatsTest:
         return dict(zip(cols, normality))
 
     def df_heteroskedasticity_white(self,
-                                    y,
-                                    X):
+                                    y_in,
+                                    X_in):
         # H0: Homoscedasticity is present (residuals are equally scattered)
 
+        X = X_in.copy()
+        y = y_in.copy()
+
+        # Check for constant
         list_1 = []
         for item in np.mean(X, axis=0):
             if item == 1:
                 list_1.append(True)
             else:
                 pass
-        assert len(list_1) == 1, "Het White test requires a constant in X data"
+        if len(list_1) != 1:
+            print("HET WHITE TEST REQUIRES A CONSTANT IN X DATA")
+            print("adding constant to data")
+            X = self._add_constant_to_data(X)
 
         wtest = het_white(y, X)
         labels = ['Test Statistic', 'Test Statistic p-value', 'F-Statistic', 'F-Test p-value']
@@ -221,5 +234,5 @@ class ModelValidation:
         stest = StatsTest(**kwargs)
         stest.arr_stationarity_adfuller(self.resid)
         stest.arr_test_normality(self.resid)
-        stest.df_heteroskedasticity_white(y=self.resid, X=self.X)
+        stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X)
         pass
