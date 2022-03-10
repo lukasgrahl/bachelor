@@ -4,10 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.stats.diagnostic import het_white
 from statsmodels.tsa.stattools import adfuller
+from yellowbrick.model_selection import LearningCurve
 
-from utils.plotting import kde_plot
+from settings import random_state
 from utils.utils import arr_inv_log_returns
 
 
@@ -170,12 +172,17 @@ class StatsTest:
 class ModelValidation:
 
     def __init__(self,
+                 X_train,
+                 y_train,
                  X_validate,
                  y_validate,
                  model,
                  data_dict):
-        self.X = X_validate
-        self.y = y_validate
+        self.X_train = X_train
+        self.y_train = y_train
+
+        self.X_test = X_validate
+        self.y_test = y_validate
         self.model = model
         self.dict_ = data_dict
 
@@ -194,16 +201,16 @@ class ModelValidation:
         pass
 
     def _get_predictions(self):
-        self.pred = self.model.predict(self.X)
+        self.pred = self.model.predict(self.X_test)
         pass
 
     def _invers_trans_y(self):
         self.pred_inv = arr_inv_log_returns(self.pred)
-        self.y_inv = arr_inv_log_returns(self.y)
+        self.y_inv = arr_inv_log_returns(self.y_test)
         pass
 
     def _get_resids(self):
-        self.resid = self.y - self.pred
+        self.resid = (self.y_test - self.pred).rename("residuals")
         self.resid_inv = self.y_inv - self.pred_inv
         pass
 
@@ -211,7 +218,9 @@ class ModelValidation:
         plt.figure(figsize=(20, 5))
         plt.plot(self.y_inv)
         plt.plot(self.pred_inv)
+        plt.title("True vs. Predicted")
         plt.legend(["y_test", "y_pred"])
+        plt.tight_layout()
         plt.show()
 
     def get_model_performance(self):
@@ -233,6 +242,27 @@ class ModelValidation:
 
         stest = StatsTest(**kwargs)
         stest.arr_stationarity_adfuller(self.resid)
+        print(self.resid)
         stest.arr_test_normality(self.resid)
-        stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X)
+        stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
         pass
+
+    def plot_learning_curve(self,
+                            scoring: str = "r2",
+                            exploit_incremental_learning: bool = False,
+                            n_splits: int = 5,
+                            max_train_size=None,
+                            test_size=None):
+        """
+        Plot learning curve for model
+        :param kwargs: cross_validation: n_splits, max_train_size, test_size
+                        learning_curve: scoring = "r2", exploit_incremental_learning
+        :return:
+        """
+        tscv = TimeSeriesSplit(n_splits=n_splits, max_train_size=max_train_size, test_size=test_size)
+        visualizer = LearningCurve(self.model, cv=tscv, random_state=random_state, scoring=scoring)
+        visualizer.fit(self.X_train, self.y_train)
+        plt.tight_layout()
+        visualizer.show()
+        pass
+
