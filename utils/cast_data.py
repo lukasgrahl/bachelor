@@ -64,6 +64,13 @@ cast_dict = {
     'vxoo': float,
     'week': str,
     'goog_sent': float,
+    'sp_close_lead1': float,
+    'sp_close_lag1': float,
+    'sp_close_lag2': float,
+    'sp_close_lag3': float,
+    'sp_close_lag4': float,
+    'sp_true_vals': float,
+    'sp_agg1': float
 }
 
 
@@ -177,7 +184,8 @@ def cast_data(func):
         if file_name.split('.')[-1] in ["pkl"]:
             return df
 
-        unknown_cols = []
+        unknown_cols = [item for item in df.columns if item not in cast_dict.keys()]
+        exceptions = []
         for col in df.columns:
             try:
                 if cast_dict[col] == "date":
@@ -186,13 +194,15 @@ def cast_data(func):
                 else:
                     df[col] = df[col].astype(cast_dict[col])
             except Exception as e:
-                print(e.args)
-                unknown_cols.append(col)
+                exceptions.append(e)
                 pass
 
         if len(unknown_cols) > 0:
-            print("Unknown columns found")
+            print("Unknown columns found, columns were not casted")
             print(unknown_cols)
+        if len(exceptions) > 0:
+            print("Exceptions were found")
+            print(exceptions)
         return df
 
     return wrapper
