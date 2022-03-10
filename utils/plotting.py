@@ -55,6 +55,7 @@ def kde_plot(arr,
     plt.show()
     pass
 
+
 def corr_plot(x,
               vals,
               show_plot,

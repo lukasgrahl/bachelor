@@ -162,14 +162,14 @@ def cross_corr(arr_x,
                arr_y,
                no_lags: int = 10,
                **kwargs):
-    cross_corr = []
+    corr_list = []
     lags = range(-no_lags, no_lags + 1)
     for i in lags:
-        cross_corr.append(arr_x.shift(i).corr(arr_y))
+        corr_list.append(arr_x.shift(i).corr(arr_y))
 
-    corr_plot(lags, cross_corr, title=arr_x.name, **kwargs)
+    corr_plot(lags, corr_list, title=arr_x.name, **kwargs)
 
-    return list(lags), cross_corr
+    return list(lags), corr_list
 
 
 def df_cross_corr(df,
