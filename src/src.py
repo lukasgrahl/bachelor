@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy import stats
 from statsmodels.stats.diagnostic import het_white
 from statsmodels.tsa.stattools import adfuller
@@ -15,11 +16,13 @@ class StatsTest:
     def __init__(self,
                  significance=0.05,
                  plot: bool = True,
-                 print_results: bool = False):
+                 print_results: bool = False,
+                 **kwargs):
 
         self.significance = significance
         self.plot = plot
         self.print_results = print_results
+        self.kwargs = kwargs
         pass
 
     def _check_sanity(self,
@@ -41,16 +44,18 @@ class StatsTest:
             plt.show()
         pass
 
-    def _qq_plot(self,
+    def _qq_kde_plot(self,
                  arr,
                  is_test):
 
         if self.plot is True:
 
-            fig, ax = plt.subplots()
-            _ = stats.probplot(arr, dist="norm", plot=ax)
+            fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
+            _ = stats.probplot(arr, dist="norm", plot=ax[0])
+            sns.kdeplot(arr, ax=ax[1])
             if type(arr) == pd.core.series.Series:
-                plt.title(f"{arr.name}: {is_test}")
+                ax[0].set_title(f"{arr.name}: {is_test}")
+                ax[1].set_title(f"{arr.name}: {is_test}")
             plt.tight_layout()
             plt.show()
         pass
@@ -89,7 +94,7 @@ class StatsTest:
                                              **kwargs)
         is_normal = pvalue > self.significance
 
-        self._qq_plot(arr, is_normal)
+        self._qq_kde_plot(arr, is_normal)
 
         if self.print_results is True:
             print("Normality Test Results")
