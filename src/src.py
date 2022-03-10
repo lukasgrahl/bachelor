@@ -242,27 +242,58 @@ class ModelValidation:
 
         stest = StatsTest(**kwargs)
         stest.arr_stationarity_adfuller(self.resid)
-        print(self.resid)
         stest.arr_test_normality(self.resid)
         stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
         pass
 
     def plot_learning_curve(self,
                             scoring: str = "r2",
-                            exploit_incremental_learning: bool = False,
                             n_splits: int = 5,
                             max_train_size=None,
                             test_size=None):
-        """
-        Plot learning curve for model
-        :param kwargs: cross_validation: n_splits, max_train_size, test_size
-                        learning_curve: scoring = "r2", exploit_incremental_learning
-        :return:
-        """
+
         tscv = TimeSeriesSplit(n_splits=n_splits, max_train_size=max_train_size, test_size=test_size)
         visualizer = LearningCurve(self.model, cv=tscv, random_state=random_state, scoring=scoring)
         visualizer.fit(self.X_train, self.y_train)
         plt.tight_layout()
         visualizer.show()
         pass
+
+    def plot_results_on_price_scale(self,
+                                    df_weekly: pd.DataFrame,
+                                    df_weekly_sub: pd.DataFrame,
+                                    xlim=None):
+        assert self.dict_["sp_true_vals"] in df_weekly.columns, f"Please add {self.dict_['sp_true_vals']} to df_weekly"
+
+        df_r = df_weekly.loc[df_weekly_sub.index].reset_index(drop=True).copy()
+
+        df_r["sp_tot_pred_test"] = np.concatenate([np.array(list([np.nan] * len(self.X_train))),
+                                                   self.pred_inv]) * df_r["sp_true_vals"]
+
+        df_r["sp_tot_pred_train"] = np.concatenate([arr_inv_log_returns(self.model.predict(self.X_train)),
+                                                    np.array(list([np.nan] * len(self.pred_inv)))]) * df_r[
+                                        "sp_true_vals"]
+
+        df_r["sp_tot_pred_train"] = df_r["sp_tot_pred_train"].shift(1)
+        df_r["sp_tot_pred_test"] = df_r["sp_tot_pred_test"].shift(1)
+
+        fig, ax = plt.subplots(1, 1, figsize=(30, 8))
+        ax.plot(df_r["sp_tot_pred_train"], marker="o", lw=.5, alpha=.3, color="blue")
+        ax.plot(df_r["sp_tot_pred_test"], marker="o", lw=.5, alpha=.5, color="red")
+        ax.plot(df_r["sp_true_vals"], color="black", lw=.8)
+        plt.title("True vs. predicted prices")
+        if xlim is not None:
+            plt.xlim(xlim)
+        plt.tight_layout()
+        plt.show()
+
+        print("Validation Scores Test Data")
+        print(f"mean squared error: {np.mean((df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']]) ** 2)}")
+        print(f"mean absolute error: {np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']]))}")
+        print(
+            f"mean absolute error %: {(np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']])) / df_r[self.dict_['sp_true_vals']].mean()) * 100}")
+
+        pass
+
+
 
