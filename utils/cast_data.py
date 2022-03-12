@@ -70,7 +70,28 @@ cast_dict = {
     'sp_close_lag3': float,
     'sp_close_lag4': float,
     'sp_true_vals': float,
-    'sp_agg1': float
+    'sp_agg1': float,
+    'date_aaii': 'date',
+    'date_goog': 'date',
+    'date_naaim': 'date',
+    'is_thu': bool,
+    'sp_close_lead14': float,
+    'sp_close_lead13': float,
+    'sp_close_lead12': float,
+    'sp_close_lead11': float,
+    'sp_close_lead10': float,
+    'sp_close_lead9': float,
+    'sp_close_lead8': float,
+    'sp_close_lead7': float,
+    'sp_close_lead6': float,
+    'sp_close_lead5': float,
+    'sp_close_lead4': float,
+    'sp_close_lead3': float,
+    'sp_close_lead2': float,
+    'sp_close_lead0': float,
+    'sp_close_lag5': float,
+    'sp_close_lag6': float,
+    'sp_close_lag7': float
 }
 
 
@@ -153,6 +174,10 @@ def apply_datetime_format(x,
     raise ValueError(f"{x} format unknonw")
 
 
+def check_singularity_of_values(arr):
+    assert (arr.value_counts() > 1).sum() == 0, "Non singular values found"
+
+
 def check_datetime_sanity(arr,
                           order: str = "past_to_future"):
     """
@@ -160,7 +185,8 @@ def check_datetime_sanity(arr,
     :param arr: datetime arr
     :param order: "past_to_future", "future_to_past"
     """
-    _ = (apply_datetime_format(arr.iloc[-1]) - apply_datetime_format(arr.iloc[0])).days
+    check_singularity_of_values(arr)
+    _ = (arr - arr.shift(1)).min().days
     if order == "past_to_future":
         assert _ > 0, f"Datetime col is not order {order}"
     elif order == "future_to_past":

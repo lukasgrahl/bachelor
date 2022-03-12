@@ -69,24 +69,19 @@ def save_file(data,
               file_name: str,
               file_path: str,
               **kwargs):
-    print(f'Are you sure you want to save model as: f"{file_name}"? (y/n)')
-    conf = input()
-    if conf == "y":
-        if ".csv" in file_name:
-            data.to_csv(os.path.join(file_path, file_name), **kwargs)
-            pass
-        elif ".feather" in file_name:
-            data.to_feather(os.path.join(file_path, file_name), **kwargs)
-            pass
-        elif ".xlsx" in file_name:
-            data.to_excel(os.path.join(file_path, file_name), **kwargs)
-            pass
-        elif ".pkl" in file_name:
-            save_pkl(data, file_name=file_name, file_path=file_path)
-        else:
-            raise KeyError(f"File tye unkonw {file_name.split('.')[-1]}")
-            pass
+    if ".csv" in file_name:
+        data.to_csv(os.path.join(file_path, file_name), **kwargs)
+        pass
+    elif ".feather" in file_name:
+        data.to_feather(os.path.join(file_path, file_name), **kwargs)
+        pass
+    elif ".xlsx" in file_name:
+        data.to_excel(os.path.join(file_path, file_name), **kwargs)
+        pass
+    elif ".pkl" in file_name:
+        save_pkl(data, file_name=file_name, file_path=file_path)
     else:
+        raise KeyError(f"File tye unkonw {file_name.split('.')[-1]}")
         pass
 
 

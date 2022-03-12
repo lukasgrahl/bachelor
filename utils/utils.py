@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+import datetime as dt
 
 from sklearn.model_selection import train_test_split
 from statsmodels.stats.outliers_influence import variance_inflation_factor
@@ -8,21 +9,10 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 import statsmodels.api as sm
 
 from settings import random_state
-from utils.cast_data import apply_date_to_week
 from utils.plotting import corr_plot
 
 
-def cut_to_weekly_data(df: pd.DataFrame,
-                       relevant_cols: list = ["all"]):
-    if "week" not in df.columns:
-        df["week"] = df["date"].apply(lambda x: apply_date_to_week(x))
-
-    if relevant_cols != ["all"]:
-        df = df[relevant_cols]
-
-    return df.dropna(axis=0).drop_duplicates("week")
-
-
+# data transformation
 def translate_neg_dist(arr):
     if min(arr) <= 0:
         return True, arr + (abs(arr.min()) + 1)
@@ -48,17 +38,6 @@ def df_log_return(df_in: pd.DataFrame,
     return df, dist_translation, log_returns
 
 
-def update_dict(dict_in: dict,
-                update_keys: list,
-                update_vals: list):
-    dict_ = dict_in.copy()
-
-    for i, key in enumerate(update_keys):
-        dict_[key] = update_vals[i]
-
-    return dict_
-
-
 def arr_log_return(arr: pd.Series):
     # Assumption, df is ordered past to future
     is_trans, arr = translate_neg_dist(arr)
@@ -72,18 +51,26 @@ def arr_inv_log_returns(arr):
 def shift_var_relative_to_df(df_in,
                              shift_var: list,
                              new_var_name: list = None,
-                             no_lags: int = [1]):
+                             no_lags: list = [1]):
     df = df_in.copy()
 
     if max(no_lags) < 0:
         print("Applying shifts in future")
 
     if new_var_name is None:
-        assert len(no_lags) == len(shift_var), "shift_var and no_lags don't correspond"
-        for i, var in enumerate(shift_var):
-            df[var] = df[var].shift(no_lags[i])
-
-        return df.dropna(axis=0)
+        if type(shift_var) == str:
+            for i in no_lags:
+                if i > 0:
+                    _ = "lag"
+                if i < 0:
+                    _ = "lead"
+                df[f"{shift_var}_{_}{abs(i)}"] = df[shift_var].shift(i)
+            return df
+        else:
+            assert len(no_lags) == len(shift_var), "shift_var and no_lags don't correspond"
+            for i, var in enumerate(shift_var):
+                df[var] = df[var].shift(no_lags[i])
+        return df
 
     if new_var_name is not None:
         assert len(no_lags) == len(new_var_name) == len(shift_var), "Please name new cols"
@@ -91,9 +78,10 @@ def shift_var_relative_to_df(df_in,
         for i, var in enumerate(shift_var):
             df[new_var_name[i]] = df[var].shift(no_lags[i])
 
-        return df.dropna(axis=0)
+        return df
 
 
+# cut & sort data
 def tts_data(df_in,
              y: str,
              x: list,
@@ -132,6 +120,96 @@ def tts_data(df_in,
     return tts
 
 
+def cut_to_weekly_data(df: pd.DataFrame,
+                       filter_col: str):
+    return df[df[filter_col] == True]
+
+
+
+def get_variance_inflation_factor(df,
+                                  cols,
+                                  col_pred):
+    vif = [variance_inflation_factor(df[cols].values, i) for i in range(df[cols].shape[1])]
+    vif = pd.DataFrame(index=cols, data=vif, columns=["VIF"])
+    vif = vif.join(df[cols].corrwith(df[col_pred]).rename(f"corr_{col_pred}"))
+    return vif.sort_values(f"corr_{col_pred}")
+
+
+# other
+def get_df_time_overview_report(df_dict: dict,
+                                date_col: str = 'date'):
+    _out = []
+    for df in df_dict.values():
+        _out.append(
+            [
+                df[date_col].min(),  # start date
+                df[date_col].max(),  # end date
+                (df[date_col].max() - df[date_col].min()).days,  # no of days
+                round((df[date_col].max() - df[date_col].min()).days / 7),
+                len(df) / (df[date_col].max() - df[date_col].min()).days,  # number of days (incld we or not)
+                (df[date_col] - df[date_col].shift(1)).apply(lambda x: x.days).mean()
+                # weekly or not weekly ~ 7, daily ~ 1 <= x < 1.5
+            ]
+        )
+    return pd.DataFrame(_out,
+                        columns=["min", "max", "days", "weeks", "days_perc", "week_or_day"],
+                        index=df_dict.keys())
+
+
+def orthogonalise_vars(df_in,
+                       X: str,
+                       y: str,
+                       show_fig: bool = True):
+    df = df_in.copy()
+    df["intercept"] = list([1] * len(df))
+    ortho = sm.OLS(endog=df[y], exog=df[[X, "intercept"]]).fit()
+
+    if show_fig is True:
+        plt.figure(figsize=(20, 4))
+        plt.plot(ortho.resid, marker="o", lw=.5)
+        plt.plot(df[X])
+
+    df[y] = ortho.resid
+
+    return df
+
+
+def is_day(arr,
+           day=None):
+    _dict = {"Mon": 0,
+             "Tue": 1,
+             "Wed": 2,
+             "Thu": 3,
+             "Fri": 4,
+             "Sat": 5,
+             "Sun": 6}
+
+    if day is None:
+        return arr.apply(lambda x: x.weekday())
+    else:
+        return arr.apply(lambda x: x.weekday() == _dict[day]).rename(f"is_{day}")
+
+
+def datetime_range(start, end):
+    dt_range = []
+    day_span = end - start
+    for i in range(0, day_span.days):
+        dt_range.append(start + dt.timedelta(i))
+    return dt_range
+
+
+def update_dict(dict_in: dict,
+                update_keys: list,
+                update_vals: list):
+    dict_ = dict_in.copy()
+
+    for i, key in enumerate(update_keys):
+        dict_[key] = update_vals[i]
+
+    return dict_
+
+
+# old func
 def lag_correl(df,
                cols,
                col_predicted: str,
@@ -156,63 +234,3 @@ def lag_correl(df,
         corr_list.append([col, highest_lag])
 
     return corr_list
-
-
-def cross_corr(arr_x,
-               arr_y,
-               no_lags: int = 10,
-               **kwargs):
-    corr_list = []
-    lags = range(-no_lags, no_lags + 1)
-    for i in lags:
-        corr_list.append(arr_x.shift(i).corr(arr_y))
-
-    corr_plot(lags, corr_list, title=arr_x.name, **kwargs)
-
-    return list(lags), corr_list
-
-
-def df_cross_corr(df,
-                  cols_x,
-                  pred_y,
-                  no_lags: int = 10,
-                  **kwargs):
-    corr_res = []
-    for col in cols_x:
-        lags, corr = cross_corr(df[col], df[pred_y], **kwargs)
-        corr_res.append(corr)
-
-    df_corr = pd.DataFrame(corr_res, index=cols_x, columns=lags).transpose()
-    df_corr = df_corr.loc[0:].abs()
-
-    results = []
-    for col in cols_x:
-        results.append([col, df_corr[col].idxmax(), round(df_corr[col].max(), 3)])
-    return results
-
-
-def get_variance_inflation_factor(df,
-                                  cols,
-                                  col_pred):
-    vif = [variance_inflation_factor(df[cols].values, i) for i in range(df[cols].shape[1])]
-    vif = pd.DataFrame(index=cols, data=vif, columns=["VIF"])
-    vif = vif.join(df[cols].corrwith(df[col_pred]).rename(f"corr_{col_pred}"))
-    return vif.sort_values(f"corr_{col_pred}")
-
-
-def orthogonalise_vars(df_in,
-                       X: str,
-                       y: str,
-                       show_fig: bool = True):
-    df = df_in.copy()
-    df["intercept"] = list([1] * len(df))
-    ortho = sm.OLS(endog=df[y], exog=df[[X, "intercept"]]).fit()
-
-    if show_fig is True:
-        plt.figure(figsize=(20, 4))
-        plt.plot(ortho.resid, marker="o", lw=.5)
-        plt.plot(df[X])
-
-    df[y] = ortho.resid
-
-    return df
