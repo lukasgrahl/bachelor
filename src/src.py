@@ -8,6 +8,7 @@ from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.stats.diagnostic import het_white
 from statsmodels.tsa.stattools import adfuller
 from yellowbrick.model_selection import LearningCurve
+from sklearn.metrics import r2_score
 
 from settings import random_state
 from utils.utils import arr_inv_log_returns
@@ -188,9 +189,10 @@ class ModelValidation:
 
         self.pred = None
         self.resid = None
+
         self.resid_inv = None
         self.pred_inv = None
-        self.y_inv = None
+        self.y_test_inv = None
 
         self.mse = None
         self.mae = None
@@ -206,17 +208,17 @@ class ModelValidation:
 
     def _invers_trans_y(self):
         self.pred_inv = arr_inv_log_returns(self.pred)
-        self.y_inv = arr_inv_log_returns(self.y_test)
+        self.y_test_inv = arr_inv_log_returns(self.y_test)
         pass
 
     def _get_resids(self):
         self.resid = (self.y_test - self.pred).rename("residuals")
-        self.resid_inv = self.y_inv - self.pred_inv
+        self.resid_inv = self.y_test_inv - self.pred_inv
         pass
 
     def _plot_pred_vs_true(self):
         plt.figure(figsize=(20, 5))
-        plt.plot(self.y_inv)
+        plt.plot(self.y_test_inv)
         plt.plot(self.pred_inv)
         plt.title("True vs. Predicted")
         plt.legend(["y_test", "y_pred"])
@@ -224,10 +226,9 @@ class ModelValidation:
         plt.show()
 
     def get_model_performance(self):
-        from sklearn.metrics import r2_score
-        self.mse = round(np.mean((self.pred_inv - self.y_inv) ** 2), 8)
-        self.mae = round(np.mean(abs(self.pred_inv - self.y_inv)), 8)
-        self.r2 = round(r2_score(self.y_inv, self.pred_inv), 4)
+        self.mse = round(np.mean((self.pred_inv - self.y_test_inv) ** 2), 8)
+        self.mae = round(np.mean(abs(self.pred_inv - self.y_test_inv)), 8)
+        self.r2 = round(r2_score(self.y_test_inv, self.pred_inv), 4)
 
         self._plot_pred_vs_true()
 
@@ -251,7 +252,6 @@ class ModelValidation:
                             n_splits: int = 5,
                             max_train_size=None,
                             test_size=None):
-
         tscv = TimeSeriesSplit(n_splits=n_splits, max_train_size=max_train_size, test_size=test_size)
         visualizer = LearningCurve(self.model, cv=tscv, random_state=random_state, scoring=scoring)
         visualizer.fit(self.X_train, self.y_train)
@@ -268,11 +268,11 @@ class ModelValidation:
         df_r = df_weekly.loc[df_weekly_sub.index].reset_index(drop=True).copy()
 
         df_r["sp_tot_pred_test"] = np.concatenate([np.array(list([np.nan] * len(self.X_train))),
-                                                   self.pred_inv]) * df_r["sp_true_vals"]
+                                                   self.pred_inv]) * df_r[self.dict_['sp_true_vals']]
 
         df_r["sp_tot_pred_train"] = np.concatenate([arr_inv_log_returns(self.model.predict(self.X_train)),
                                                     np.array(list([np.nan] * len(self.pred_inv)))]) * df_r[
-                                        "sp_true_vals"]
+                                        self.dict_['sp_true_vals']]
 
         df_r["sp_tot_pred_train"] = df_r["sp_tot_pred_train"].shift(1)
         df_r["sp_tot_pred_test"] = df_r["sp_tot_pred_test"].shift(1)
@@ -290,8 +290,7 @@ class ModelValidation:
         print("Validation Scores Test Data")
         print(f"mean squared error: {np.mean((df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']]) ** 2)}")
         print(f"mean absolute error: {np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']]))}")
-        print(
-            f"mean absolute error %: {(np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']])) / df_r[self.dict_['sp_true_vals']].mean()) * 100}")
+        print(f"mean absolute error %: {(np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']])) / df_r[self.dict_['sp_true_vals']].mean()) * 100}")
 
         pass
 
