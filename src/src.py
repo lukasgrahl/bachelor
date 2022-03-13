@@ -1,17 +1,19 @@
+import lightgbm
 import pandas as pd
 import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.stats.diagnostic import het_white
 from statsmodels.tsa.stattools import adfuller
 from yellowbrick.model_selection import LearningCurve
-from sklearn.metrics import r2_score
 
 from settings import random_state
-from utils.utils import arr_inv_log_returns
+from utils.plotting import plot_learning_curve, plot_lgbm_learning_curve
+from utils.utils import arr_inv_log_returns, add_constant, get_performance_metrics, suppress_cmd_print
 
 
 class StatsTest:
@@ -194,6 +196,8 @@ class ModelValidation:
         self.pred_inv = None
         self.y_test_inv = None
 
+        self.df_r = None
+
         self.mse = None
         self.mae = None
         self.r2 = None
@@ -226,9 +230,7 @@ class ModelValidation:
         plt.show()
 
     def get_model_performance(self):
-        self.mse = round(np.mean((self.pred_inv - self.y_test_inv) ** 2), 8)
-        self.mae = round(np.mean(abs(self.pred_inv - self.y_test_inv)), 8)
-        self.r2 = round(r2_score(self.y_test_inv, self.pred_inv), 4)
+        self.mse, self.mae, self.r2 = get_performance_metrics(self.y_test_inv, self.pred_inv)
 
         self._plot_pred_vs_true()
 
@@ -259,40 +261,117 @@ class ModelValidation:
         visualizer.show()
         pass
 
+    def sm_learning_curve(self,
+                               plot_title: str,
+                               scoring: str = "neg_mean_squared_error",
+                               n_splits: int = 5):
+        tscv = TimeSeriesSplit(n_splits=n_splits)
+        fig = plot_learning_curve(self.model, plot_title, self.X_test, self.y_test, cv=tscv, scoring=scoring)
+        return fig
+
+    def lgbm_learning_curve(self,
+                            params: dict,
+                            lgb_train: lightgbm.Dataset,
+                            lgb_test: lightgbm.Dataset,
+                            plot_title: str,
+                            n_splits: int = 5,
+                            suppress_lgb_print_output: bool = True):
+
+        plot_title = f"{plot_title} metric: {params['metric'][0]}"
+
+        if suppress_lgb_print_output:
+            with suppress_cmd_print():
+                fig = plot_lgbm_learning_curve(params, lgb_train, lgb_test, plot_title, n_splits)
+        else:
+            fig = plot_lgbm_learning_curve(params, lgb_train, lgb_test, plot_title, n_splits)
+        pass
+
     def plot_results_on_price_scale(self,
                                     df_weekly: pd.DataFrame,
                                     df_weekly_sub: pd.DataFrame,
-                                    xlim=None):
+                                    xlim=None,
+                                    show_pred_only: bool = False):
         assert self.dict_["sp_true_vals"] in df_weekly.columns, f"Please add {self.dict_['sp_true_vals']} to df_weekly"
 
-        df_r = df_weekly.loc[df_weekly_sub.index].reset_index(drop=True).copy()
+        self.df_r = df_weekly.loc[df_weekly_sub.index].reset_index(drop=True).copy()
 
-        df_r["sp_tot_pred_test"] = np.concatenate([np.array(list([np.nan] * len(self.X_train))),
-                                                   self.pred_inv]) * df_r[self.dict_['sp_true_vals']]
+        self.df_r["sp_tot_pred_test"] = np.concatenate([np.array(list([np.nan] * len(self.X_train))),
+                                                   self.pred_inv]) * self.df_r[self.dict_['sp_true_vals']]
 
-        df_r["sp_tot_pred_train"] = np.concatenate([arr_inv_log_returns(self.model.predict(self.X_train)),
-                                                    np.array(list([np.nan] * len(self.pred_inv)))]) * df_r[
+        self.df_r["sp_tot_pred_train"] = np.concatenate([arr_inv_log_returns(self.model.predict(self.X_train)),
+                                                    np.array(list([np.nan] * len(self.pred_inv)))]) * self.df_r[
                                         self.dict_['sp_true_vals']]
 
-        df_r["sp_tot_pred_train"] = df_r["sp_tot_pred_train"].shift(1)
-        df_r["sp_tot_pred_test"] = df_r["sp_tot_pred_test"].shift(1)
+        self.df_r["sp_tot_pred_train"] = self.df_r["sp_tot_pred_train"].shift(1)
+        self.df_r["sp_tot_pred_test"] = self.df_r["sp_tot_pred_test"].shift(1)
 
         fig, ax = plt.subplots(1, 1, figsize=(30, 8))
-        ax.plot(df_r["sp_tot_pred_train"], marker="o", lw=.5, alpha=.3, color="blue")
-        ax.plot(df_r["sp_tot_pred_test"], marker="o", lw=.5, alpha=.5, color="red")
-        ax.plot(df_r["sp_true_vals"], color="black", lw=.8)
+        ax.plot(self.df_r["sp_tot_pred_train"], marker="o", lw=.5, alpha=.3, color="blue")
+        ax.plot(self.df_r["sp_tot_pred_test"], marker="o", lw=.5, alpha=.5, color="red")
+        ax.plot(self.df_r["sp_true_vals"], color="black", lw=.8)
         plt.title("True vs. predicted prices")
-        if xlim is not None:
-            plt.xlim(xlim)
+
+        if show_pred_only:
+            plt.xlim([len(self.df_r) - len(self.pred_inv), len(self.df_r)])
+            assert xlim is None, "show_pred_only and xlim are mutually exclusive"
+        else:
+            if xlim is not None:
+                plt.xlim(xlim)
         plt.tight_layout()
         plt.show()
 
+        mse, mae, r2 = get_performance_metrics(self.df_r.loc[self.df_r.sp_tot_pred_test.dropna().index,
+                                                             self.dict_['sp_true_vals']],
+                                               self.df_r.sp_tot_pred_test.dropna())
+
         print("Validation Scores Test Data")
-        print(f"mean squared error: {np.mean((df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']]) ** 2)}")
-        print(f"mean absolute error: {np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']]))}")
-        print(f"mean absolute error %: {(np.mean(abs(df_r.sp_tot_pred_test - df_r[self.dict_['sp_true_vals']])) / df_r[self.dict_['sp_true_vals']].mean()) * 100}")
+        print(f"mean squared error: {mse}")
+        print(f"mean absolute error: {mae}")
+        print(f"mean absolute error in %: {mae/np.mean(self.df_r[self.dict_['sp_true_vals']])}")
+        print(f"r2: {r2}")
 
         pass
+
+
+class SKLearnWrap(BaseEstimator, RegressorMixin):
+
+    def __init__(self,
+                 model_class,
+                 fit_intercept: bool = True):
+        """
+        SKLearn Wrapper for Statsmodels models
+        :param model_class: Statsmodel.model e.g. sm.OLS
+        :param fit_intercept:
+        """
+        self.model_class = model_class
+        self.fit_intercept = fit_intercept
+
+        self.model_ = None
+        self.results_ = None
+        pass
+
+    def fit(self, X, y):
+        """
+        Fit trainig data to model
+        :param X: X_train
+        :param y: y_train
+        :return: fitted model
+        """
+        if self.fit_intercept:
+            X = add_constant(X, constant_value=1)
+        self.model_ = self.model_class(y, X)
+        self.results_ = self.model_.fit()
+        return self
+
+    def predict(self, X):
+        """
+        Model prediction
+        :param X: X_test
+        :return: predictions for X
+        """
+        if self.fit_intercept:
+            X = add_constant(X, constant_value=1)
+        return self.results_.predict(X)
 
 
 
