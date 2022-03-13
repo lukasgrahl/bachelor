@@ -1,6 +1,8 @@
 from functools import wraps
 import datetime as dt
 
+import pandas as pd
+
 cast_dict = {
     'Call': float,
     'Mean/Average': float,
@@ -37,6 +39,8 @@ cast_dict = {
     'ff_SMB': float,
     'ff_SMB_3': float,
     'naaim_ind': float,
+    'naaim_max': float,
+    'naaim_q1': float,
     'naaim_std': float,
     'pc_ratio': float,
     'sp_adj_close': float,
@@ -51,18 +55,19 @@ cast_dict = {
     'vixl': float,
     'vixo': float,
     'vxd': float,
-    'vxdh': float,
-    'vxdl': float,
-    'vxdo': float,
-    'vxn': float,
-    'vxnh': float,
-    'vxnl': float,
-    'vxno': float,
-    'vxo': float,
-    'vxoh': float,
-    'vxol': float,
-    'vxoo': float,
+    # 'vxdh': float,
+    # 'vxdl': float,
+    # 'vxdo': float,
+    # 'vxn': float,
+    # 'vxnh': float,
+    # 'vxnl': float,
+    # 'vxno': float,
+    # 'vxo': float,
+    # 'vxoh': float,
+    # 'vxol': float,
+    # 'vxoo': float,
     'week': str,
+    'weekday': int,
     'goog_sent': float,
     'sp_close_lead1': float,
     'sp_close_lag1': float,
@@ -175,7 +180,7 @@ def apply_datetime_format(x,
 
 
 def check_singularity_of_values(arr):
-    assert (arr.value_counts() > 1).sum() == 0, "Non singular values found"
+    assert (arr.value_counts() > 1).sum() == 0, f"Non singular values found {arr.value_counts() > 1}"
 
 
 def check_datetime_sanity(arr,
@@ -197,6 +202,7 @@ def check_datetime_sanity(arr,
 def cast_data(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
+
         if "europe_time_slash" in kwargs.keys():
             europe_time_slash = kwargs["europe_time_slash"]
             kwargs.pop("europe_time_slash")
@@ -206,31 +212,28 @@ def cast_data(func):
         df = func(*args, **kwargs)
         assert "file_name" in kwargs.keys(), "Specify filname as kwargs"
 
-        file_name = kwargs["file_name"]
-        if file_name.split('.')[-1] in ["pkl"]:
+        if type(df) == pd.DataFrame:
+            unknown_cols = [item for item in df.columns if item not in cast_dict.keys()]
+            exceptions = []
+            for col in df.columns:
+                try:
+                    if cast_dict[col] == "date":
+                        df[col] = df[col].apply(lambda x: apply_datetime_format(x, europe_time_slash=europe_time_slash))
+                        check_datetime_sanity(arr=df[col], order="past_to_future")
+                    else:
+                        df[col] = df[col].astype(cast_dict[col])
+                except Exception as e:
+                    exceptions.append(e)
+                    pass
+            if len(unknown_cols) > 0:
+                print("Unknown columns found, columns were not casted")
+                print(unknown_cols)
+            if len(exceptions) > 0:
+                print("Exceptions were found")
+                print(exceptions)
             return df
-
-        unknown_cols = [item for item in df.columns if item not in cast_dict.keys()]
-        exceptions = []
-        for col in df.columns:
-            try:
-                if cast_dict[col] == "date":
-                    df[col] = df[col].apply(lambda x: apply_datetime_format(x, europe_time_slash=europe_time_slash))
-                    check_datetime_sanity(arr=df[col], order="past_to_future")
-                else:
-                    df[col] = df[col].astype(cast_dict[col])
-            except Exception as e:
-                exceptions.append(e)
-                pass
-
-        if len(unknown_cols) > 0:
-            print("Unknown columns found, columns were not casted")
-            print(unknown_cols)
-        if len(exceptions) > 0:
-            print("Exceptions were found")
-            print(exceptions)
-        return df
-
+        else:
+            return df
     return wrapper
 
 

@@ -3,7 +3,11 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import datetime as dt
 
+from contextlib import contextmanager
+import sys, os
+
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 import statsmodels.api as sm
@@ -81,7 +85,27 @@ def shift_var_relative_to_df(df_in,
         return df
 
 
+def add_constant(df_in,
+                 constant_value=1,
+                 constant_name: str = "intercept"):
+    """
+    Inserts constant column into df
+    :param df_in:
+    :param constant_value: value of the constant
+    :param constant_name: name of the constant col
+    :return:
+    """
+    df = df_in.copy()
+    df[constant_name] = list([constant_value] * len(df))
+    return df
+
+
 # cut & sort data
+def cut_to_weekly_data(df: pd.DataFrame,
+                       filter_col: str):
+    return df[df[filter_col] == True].dropna()
+
+
 def tts_data(df_in,
              y: str,
              x: list,
@@ -103,7 +127,6 @@ def tts_data(df_in,
 
     if random_split:
         tts = train_test_split(X, y, test_size=.3, random_state=random_state)
-
     else:
         test_size = round(len(df) * (1 - test_size))
         y_train = y.iloc[:test_size]
@@ -118,12 +141,6 @@ def tts_data(df_in,
         tts[i] = tts[i].reset_index(drop=True)
 
     return tts
-
-
-def cut_to_weekly_data(df: pd.DataFrame,
-                       filter_col: str):
-    return df[df[filter_col] == True]
-
 
 
 def get_variance_inflation_factor(df,
@@ -185,9 +202,9 @@ def is_day(arr,
              "Sun": 6}
 
     if day is None:
-        return arr.apply(lambda x: x.weekday())
+        return arr.apply(lambda x: 99 if x == np.nan else x.weekday())
     else:
-        return arr.apply(lambda x: x.weekday() == _dict[day]).rename(f"is_{day}")
+        return arr.apply(lambda x: 99 if x == np.nan else x.weekday() == _dict[day]).rename(f"is_{day}")
 
 
 def datetime_range(start, end):
@@ -207,6 +224,25 @@ def update_dict(dict_in: dict,
         dict_[key] = update_vals[i]
 
     return dict_
+
+
+def get_performance_metrics(y_true,
+                            y_pred):
+    mse = round(mean_squared_error(y_true, y_pred), 6)
+    mae = round(mean_absolute_error(y_true, y_pred), 6)
+    r2 = round(r2_score(y_true, y_pred), 6)
+    return mse, mae, r2
+
+
+@contextmanager
+def suppress_cmd_print():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = sys.stdout
+        sys.stdout = devnull
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
 
 
 # old func
