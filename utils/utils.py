@@ -57,6 +57,7 @@ def shift_var_relative_to_df(df_in,
                              new_var_name: list = None,
                              no_lags: list = [1]):
     df = df_in.copy()
+    shift_dict = {}
 
     if max(no_lags) < 0:
         print("Applying shifts in future")
@@ -65,24 +66,26 @@ def shift_var_relative_to_df(df_in,
         if type(shift_var) == str:
             for i in no_lags:
                 if i > 0:
-                    _ = "lag"
+                    shift_direction = "lag"
                 if i < 0:
-                    _ = "lead"
-                df[f"{shift_var}_{_}{abs(i)}"] = df[shift_var].shift(i)
-            return df
+                    shift_direction = "lead"
+                df[f"{shift_var}_{shift_direction}{abs(i)}"] = df[shift_var].shift(i)
+            shift_dict[shift_var] = no_lags
+            return df, shift_dict
         else:
             assert len(no_lags) == len(shift_var), "shift_var and no_lags don't correspond"
             for i, var in enumerate(shift_var):
                 df[var] = df[var].shift(no_lags[i])
-        return df
+        shift_dict = dict(zip(shift_var, no_lags))
+        return df, shift_dict
 
-    if new_var_name is not None:
+    elif new_var_name is not None:
         assert len(no_lags) == len(new_var_name) == len(shift_var), "Please name new cols"
 
         for i, var in enumerate(shift_var):
             df[new_var_name[i]] = df[var].shift(no_lags[i])
-
-        return df
+        shift_dict = dict(zip(shift_var, no_lags))
+        return df, shift_dict
 
 
 def add_constant(df_in,

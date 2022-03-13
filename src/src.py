@@ -65,12 +65,6 @@ class StatsTest:
             plt.show()
         pass
 
-    def _add_constant_to_data(self,
-                              df_in: pd.DataFrame):
-        df = df_in.copy()
-        df["constant"] = list([1] * len(df))
-        return df
-
     def arr_stationarity_adfuller(self,
                                   arr,
                                   **kwargs):
@@ -155,7 +149,7 @@ class StatsTest:
         if len(list_1) != 1:
             print("HET WHITE TEST REQUIRES A CONSTANT IN X DATA")
             print("adding constant to data")
-            X = self._add_constant_to_data(X)
+            X = add_constant(X)
 
         wtest = het_white(y, X)
         labels = ['Test Statistic', 'Test Statistic p-value', 'F-Statistic', 'F-Test p-value']
@@ -179,15 +173,13 @@ class ModelValidation:
                  y_train,
                  X_validate,
                  y_validate,
-                 model,
-                 data_dict):
+                 model):
         self.X_train = X_train
         self.y_train = y_train
 
         self.X_test = X_validate
         self.y_test = y_validate
         self.model = model
-        self.dict_ = data_dict
 
         self.pred = None
         self.resid = None
@@ -244,10 +236,10 @@ class ModelValidation:
         self._get_resids()
 
         stest = StatsTest(**kwargs)
-        stest.arr_stationarity_adfuller(self.resid)
-        stest.arr_test_normality(self.resid)
-        stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
-        pass
+        stationarity = stest.arr_stationarity_adfuller(self.resid)
+        normality = stest.arr_test_normality(self.resid)
+        heteroskedasticity = stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
+        return stationarity, normality, heteroskedasticity
 
     def plot_learning_curve(self,
                             scoring: str = "r2",
@@ -262,9 +254,9 @@ class ModelValidation:
         pass
 
     def sm_learning_curve(self,
-                               plot_title: str,
-                               scoring: str = "neg_mean_squared_error",
-                               n_splits: int = 5):
+                          plot_title: str,
+                          scoring: str = "neg_mean_squared_error",
+                          n_splits: int = 5):
         tscv = TimeSeriesSplit(n_splits=n_splits)
         fig = plot_learning_curve(self.model, plot_title, self.X_test, self.y_test, cv=tscv, scoring=scoring)
         return fig
@@ -289,18 +281,19 @@ class ModelValidation:
     def plot_results_on_price_scale(self,
                                     df_weekly: pd.DataFrame,
                                     df_weekly_sub: pd.DataFrame,
+                                    sp_true_vals: str,
                                     xlim=None,
                                     show_pred_only: bool = False):
-        assert self.dict_["sp_true_vals"] in df_weekly.columns, f"Please add {self.dict_['sp_true_vals']} to df_weekly"
+        assert sp_true_vals in df_weekly.columns, f"Please add {sp_true_vals} to df_weekly"
 
         self.df_r = df_weekly.loc[df_weekly_sub.index].reset_index(drop=True).copy()
 
         self.df_r["sp_tot_pred_test"] = np.concatenate([np.array(list([np.nan] * len(self.X_train))),
-                                                   self.pred_inv]) * self.df_r[self.dict_['sp_true_vals']]
+                                                        self.pred_inv]) * self.df_r[sp_true_vals]
 
         self.df_r["sp_tot_pred_train"] = np.concatenate([arr_inv_log_returns(self.model.predict(self.X_train)),
-                                                    np.array(list([np.nan] * len(self.pred_inv)))]) * self.df_r[
-                                        self.dict_['sp_true_vals']]
+                                                         np.array(list([np.nan] * len(self.pred_inv)))]) * self.df_r[
+                                             sp_true_vals]
 
         self.df_r["sp_tot_pred_train"] = self.df_r["sp_tot_pred_train"].shift(1)
         self.df_r["sp_tot_pred_test"] = self.df_r["sp_tot_pred_test"].shift(1)
@@ -308,7 +301,7 @@ class ModelValidation:
         fig, ax = plt.subplots(1, 1, figsize=(30, 8))
         ax.plot(self.df_r["sp_tot_pred_train"], marker="o", lw=.5, alpha=.3, color="blue")
         ax.plot(self.df_r["sp_tot_pred_test"], marker="o", lw=.5, alpha=.5, color="red")
-        ax.plot(self.df_r["sp_true_vals"], color="black", lw=.8)
+        ax.plot(self.df_r[sp_true_vals], color="black", lw=.8)
         plt.title("True vs. predicted prices")
 
         if show_pred_only:
@@ -321,13 +314,13 @@ class ModelValidation:
         plt.show()
 
         mse, mae, r2 = get_performance_metrics(self.df_r.loc[self.df_r.sp_tot_pred_test.dropna().index,
-                                                             self.dict_['sp_true_vals']],
+                                                             sp_true_vals],
                                                self.df_r.sp_tot_pred_test.dropna())
 
         print("Validation Scores Test Data")
         print(f"mean squared error: {mse}")
         print(f"mean absolute error: {mae}")
-        print(f"mean absolute error in %: {mae/np.mean(self.df_r[self.dict_['sp_true_vals']])}")
+        print(f"mean absolute error in %: {mae / np.mean(self.df_r[sp_true_vals])}")
         print(f"r2: {r2}")
 
         pass
