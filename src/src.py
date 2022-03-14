@@ -1,3 +1,5 @@
+import os
+
 import lightgbm
 import pandas as pd
 import numpy as np
@@ -70,7 +72,6 @@ class StatsTest:
                                   **kwargs):
 
         # H0: The time series is non-stationary
-
         arr = self._check_sanity(arr)
 
         test = adfuller(arr, **kwargs)
@@ -173,7 +174,11 @@ class ModelValidation:
                  y_train,
                  X_validate,
                  y_validate,
-                 model):
+                 model,
+                 print_results: bool = False):
+
+        self.print_results = print_results
+
         self.X_train = X_train
         self.y_train = y_train
 
@@ -213,32 +218,35 @@ class ModelValidation:
         pass
 
     def _plot_pred_vs_true(self):
-        plt.figure(figsize=(20, 5))
-        plt.plot(self.y_test_inv)
-        plt.plot(self.pred_inv)
+        fig, ax = plt.subplots(1, 1, figsize=(20, 5))
+        ax.plot(self.y_test_inv)
+        ax.plot(self.pred_inv)
         plt.title("True vs. Predicted")
         plt.legend(["y_test", "y_pred"])
         plt.tight_layout()
         plt.show()
+        return fig
 
     def get_model_performance(self):
         self.mse, self.mae, self.r2 = get_performance_metrics(self.y_test_inv, self.pred_inv)
+        fig = self._plot_pred_vs_true()
 
-        self._plot_pred_vs_true()
-
-        print("Validation Scores")
-        print(f'mean squared error: {self.mse}')
-        print(f'mean absolute error: {self.mae}')
-        print(f'R2: {self.r2}')
+        if self.print_results:
+            print("Validation Scores")
+            print(f'mean squared error: {self.mse}')
+            print(f'mean absolute error: {self.mae}')
+            print(f'R2: {self.r2}')
+        return fig
 
     def analyse_resids(self,
                        **kwargs):
         self._get_resids()
 
-        stest = StatsTest(**kwargs)
+        stest = StatsTest(**kwargs, print_results=self.print_results)
         stationarity = stest.arr_stationarity_adfuller(self.resid)
         normality = stest.arr_test_normality(self.resid)
         heteroskedasticity = stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
+
         return stationarity, normality, heteroskedasticity
 
     def plot_learning_curve(self,
@@ -246,6 +254,7 @@ class ModelValidation:
                             n_splits: int = 5,
                             max_train_size=None,
                             test_size=None):
+
         tscv = TimeSeriesSplit(n_splits=n_splits, max_train_size=max_train_size, test_size=test_size)
         visualizer = LearningCurve(self.model, cv=tscv, random_state=random_state, scoring=scoring)
         visualizer.fit(self.X_train, self.y_train)
@@ -276,7 +285,7 @@ class ModelValidation:
                 fig = plot_lgbm_learning_curve(params, lgb_train, lgb_test, plot_title, n_splits)
         else:
             fig = plot_lgbm_learning_curve(params, lgb_train, lgb_test, plot_title, n_splits)
-        pass
+        return fig
 
     def plot_results_on_price_scale(self,
                                     df_weekly: pd.DataFrame,
@@ -316,14 +325,13 @@ class ModelValidation:
         mse, mae, r2 = get_performance_metrics(self.df_r.loc[self.df_r.sp_tot_pred_test.dropna().index,
                                                              sp_true_vals],
                                                self.df_r.sp_tot_pred_test.dropna())
-
-        print("Validation Scores Test Data")
-        print(f"mean squared error: {mse}")
-        print(f"mean absolute error: {mae}")
-        print(f"mean absolute error in %: {mae / np.mean(self.df_r[sp_true_vals])}")
-        print(f"r2: {r2}")
-
-        pass
+        if self.print_results:
+            print("Validation Scores Test Data")
+            print(f"mean squared error: {mse}")
+            print(f"mean absolute error: {mae}")
+            print(f"mean absolute error in %: {mae / np.mean(self.df_r[sp_true_vals])}")
+            print(f"r2: {r2}")
+        return fig
 
 
 class SKLearnWrap(BaseEstimator, RegressorMixin):
