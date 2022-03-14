@@ -254,7 +254,7 @@ def plot_learning_curve(
     scoring: sklearn scoring metrics
     """
     if axes is None:
-        _, axes = plt.subplots(1, 1, figsize=(10, 5))
+        fig, axes = plt.subplots(1, 1, figsize=(10, 5))
 
     axes.set_title(title)
     if ylim is not None:
@@ -303,4 +303,4 @@ def plot_learning_curve(
     )
     axes.legend(loc="best")
 
-    return plt
+    return fig

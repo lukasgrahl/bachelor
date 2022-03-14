@@ -146,6 +146,7 @@ def tts_data(df_in,
     return tts
 
 
+# other
 def get_variance_inflation_factor(df,
                                   cols,
                                   col_pred):
@@ -156,6 +157,10 @@ def get_variance_inflation_factor(df,
 
 
 # other
+def is_dir_existant(path):
+    return os.path.isdir(path)
+
+
 def get_df_time_overview_report(df_dict: dict,
                                 date_col: str = 'date'):
     _out = []
@@ -231,9 +236,9 @@ def update_dict(dict_in: dict,
 
 def get_performance_metrics(y_true,
                             y_pred):
-    mse = round(mean_squared_error(y_true, y_pred), 6)
-    mae = round(mean_absolute_error(y_true, y_pred), 6)
-    r2 = round(r2_score(y_true, y_pred), 6)
+    mse = round(mean_squared_error(y_true, y_pred), 10)
+    mae = round(mean_absolute_error(y_true, y_pred), 10)
+    r2 = round(r2_score(y_true, y_pred), 10)
     return mse, mae, r2
 
 
