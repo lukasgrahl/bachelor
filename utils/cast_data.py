@@ -101,6 +101,11 @@ cast_dict = {
 
 
 def apply_date_to_week(x):
+    """
+    Returns week as string for given datetime
+    :param x: datetime or string
+    :return: week YYYYWW, where WW is week number
+    """
     # return apply_datetime_format(x).isocalendar()[0:2]
     x = apply_datetime_format(x).isocalendar()[0:2]
     return str(x[0]) + str(x[1])
@@ -109,6 +114,13 @@ def apply_date_to_week(x):
 def apply_datetime_format(x,
                           ret_time: bool = False,
                           europe_time_slash: bool = False):
+    """
+    Function applies datetime format to any given string
+    :param x: datetime string
+    :param ret_time: return datetime or date only
+    :param europe_time_slash: should "/" be intepreted as european or american - month/day vs. day/month
+    :return: datetime format
+    """
     x = str(x)
     try:
         x = dt.datetime.strptime(x, "%Y-%m-%d")
@@ -180,6 +192,11 @@ def apply_datetime_format(x,
 
 
 def check_singularity_of_values(arr):
+    """
+    Checks array for duplicate values
+    :param arr: array
+    :return: raises error of duplicates exist
+    """
     assert (arr.value_counts() > 1).sum() == 0, f"Non singular values found {arr.value_counts() > 1}"
 
 
@@ -200,6 +217,12 @@ def check_datetime_sanity(arr,
 
 
 def cast_data(func):
+
+    """
+    Wrapper function for load data: Cast data casts data according to dtype in dict above
+    :param func:
+    :return:
+    """
     @wraps(func)
     def wrapper(*args, **kwargs):
 

@@ -26,6 +26,14 @@ class StatsTest:
                  print_results: bool = False,
                  **kwargs):
 
+        """
+        Class for statistic test on df as well as arr level
+        :param significance: signifcance level
+        :param plot: plot data bool
+        :param print_results: print test report to cmd
+        :param kwargs:
+        """
+
         self.significance = significance
         self.plot = plot
         self.print_results = print_results
@@ -70,6 +78,12 @@ class StatsTest:
     def arr_stationarity_adfuller(self,
                                   arr,
                                   **kwargs):
+        """
+        Applies statsmodel adfuller test to array
+        :param arr:
+        :param kwargs:
+        :return:
+        """
 
         # H0: The time series is non-stationary
         arr = self._check_sanity(arr)
@@ -92,6 +106,12 @@ class StatsTest:
     def arr_test_normality(self,
                            arr,
                            **kwargs):
+        """
+        Applies statsmodel normaltest to arr
+        :param arr:
+        :param kwargs:
+        :return:
+        """
         # H0: sample comes from a normal distribution
 
         arr = self._check_sanity(arr)
@@ -114,9 +134,16 @@ class StatsTest:
                              df_in: pd.DataFrame,
                              cols: list,
                              **kwargs):
+        """
+        Applies arr_test_stationarity to cols in df_in
+        :param df_in:
+        :param cols:
+        :param kwargs:
+        :return:
+        """
         stationary = []
         for col in cols:
-            is_stationary = self.arr_stationarity_adfuller(df_in[col])
+            is_stationary = self.arr_stationarity_adfuller(df_in[col], **kwargs)
             stationary.append(is_stationary)
 
         return dict(zip(cols, stationary))
@@ -125,6 +152,13 @@ class StatsTest:
                           df_in: pd.DataFrame,
                           cols: list,
                           **kwargs):
+        """
+        Applies arr_test_normality to cols in df_in
+        :param df_in:
+        :param cols:
+        :param kwargs:
+        :return:
+        """
         normality = []
         for col in cols:
             is_normal = self.arr_test_normality(df_in[col])
@@ -135,6 +169,12 @@ class StatsTest:
     def df_heteroskedasticity_white(self,
                                     y_in,
                                     X_in):
+        """
+        Applies het_white test for homoscedasticity to y drawing X from dataframe
+        :param y_in:
+        :param X_in:
+        :return:
+        """
         # H0: Homoscedasticity is present (residuals are equally scattered)
 
         X = X_in.copy()
@@ -176,6 +216,16 @@ class ModelValidation:
                  y_validate,
                  model,
                  print_results: bool = False):
+
+        """
+        General model validation class: Performs residual analysis and plots learning curve
+        :param X_train:
+        :param y_train:
+        :param X_validate:
+        :param y_validate:
+        :param model:
+        :param print_results: print results to cmd bool
+        """
 
         self.print_results = print_results
 

@@ -75,7 +75,7 @@ def kde_plot(arr,
 
 def corr_plot(x,
               vals,
-              show_plot,
+              show_plot: bool = False,
               title=None,
               *args,
               **kwargs):
