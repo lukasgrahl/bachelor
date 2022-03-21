@@ -164,7 +164,7 @@ def plot_lgbm_learning_curve(params: dict,
     cv_test = lightgbm.cv(params,
                           lgb_test,
                           folds=tscv)
-
+    print(cv_train)
     cv_train = {item: np.array(cv_train[item]) for item in cv_train.keys()}
     cv_test = {item: np.array(cv_test[item]) for item in cv_test.keys()}
 
