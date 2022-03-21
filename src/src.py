@@ -229,11 +229,11 @@ class ModelValidation:
 
         self.print_results = print_results
 
-        self.X_train = X_train
-        self.y_train = y_train
+        self.X_train = X_train.reset_index(drop=True)
+        self.y_train = y_train.reset_index(drop=True)
 
-        self.X_test = X_validate
-        self.y_test = y_validate
+        self.X_test = X_validate.reset_index(drop=True)
+        self.y_test = y_validate.reset_index(drop=True)
         self.model = model
 
         self.y_pred = None

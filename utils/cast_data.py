@@ -93,10 +93,17 @@ cast_dict = {
     'sp_close_lead4': float,
     'sp_close_lead3': float,
     'sp_close_lead2': float,
-    'sp_close_lead0': float,
     'sp_close_lag5': float,
     'sp_close_lag6': float,
-    'sp_close_lag7': float
+    'sp_close_lag7': float,
+    'sp_close_lag8': float,
+    'sp_close_lag9': float,
+    'sp_close_lag10': float,
+    'weekday_0': int,
+    'weekday_1': int,
+    'weekday_2': int,
+    'weekday_3': int,
+    'weekday_4': int
 }
 
 
@@ -188,6 +195,13 @@ def apply_datetime_format(x,
     except ValueError:
         pass
 
+    try:
+        x = dt.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
+        if ret_time is False:
+            return x.date()
+    except ValueError:
+        pass
+
     raise ValueError(f"{x} format unknonw")
 
 
@@ -217,12 +231,12 @@ def check_datetime_sanity(arr,
 
 
 def cast_data(func):
-
     """
     Wrapper function for load data: Cast data casts data according to dtype in dict above
     :param func:
     :return:
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
 
@@ -257,6 +271,7 @@ def cast_data(func):
             return df
         else:
             return df
+
     return wrapper
 
 

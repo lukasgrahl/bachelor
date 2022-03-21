@@ -18,20 +18,26 @@ from utils.plotting import corr_plot
 
 # data transformation
 def translate_neg_dist(arr):
-    if min(arr) <= 0:
+    if min(arr.dropna()) <= 0:
         return True, arr + (abs(arr.min()) + 1)
     else:
         return False, arr
     pass
 
 
-def df_log_return(df_in: pd.DataFrame,
-                  cols: list):
+def arr_log_transform(arr: pd.Series):
+    is_trans, arr = translate_neg_dist(arr)
+    return is_trans, np.log(arr)
+
+
+def df_transform(df_in: pd.DataFrame,
+                 cols: list,
+                 func):
     df = df_in.copy()
     dist_trans = []
 
     for col in cols:
-        is_trans, df[col] = arr_log_return(df[col])
+        is_trans, df[col] = func(df[col])
         dist_trans.append(is_trans)
 
     dist_translation = dict(zip(cols, dist_trans))
@@ -40,7 +46,6 @@ def df_log_return(df_in: pd.DataFrame,
     df.dropna(inplace=True)
 
     return df, dist_translation, log_returns
-
 
 def arr_log_return(arr: pd.Series):
     # Assumption, df is ordered past to future
@@ -114,7 +119,8 @@ def tts_data(df_in,
              x: list,
              add_const: bool = True,
              random_split: bool = True,
-             test_size: float = 0.3):
+             test_size: float = 0.3,
+             reset_index: bool = False):
     # Asumption: times series ordered past - future
 
     df = df_in.copy()
@@ -140,8 +146,9 @@ def tts_data(df_in,
 
         tts = [X_train, X_test, y_train, y_test]
 
-    for i, _ in enumerate(tts):
-        tts[i] = tts[i].reset_index(drop=True)
+    if reset_index:
+        for i, _ in enumerate(tts):
+            tts[i] = tts[i].reset_index(drop=True)
 
     return tts
 
