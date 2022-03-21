@@ -169,12 +169,12 @@ def plot_lgbm_learning_curve(params: dict,
     cv_test = {item: np.array(cv_test[item]) for item in cv_test.keys()}
 
     fig, ax = plt.subplots(1, 1, figsize=(7, 4))
-    ax.plot(cv_test["l2-mean"], color="blue")
-    ax.plot(cv_train["l2-mean"], color="red")
+    ax.plot(cv_test[list(cv_test.keys())[0]], color="blue")
+    ax.plot(cv_train[list(cv_train.keys())[0]], color="red")
 
     # plt.fill_between(list(range(0, len(cv_test["l2-mean"]))), cv_test["l2-mean"] + cv_test["l2-stdv"], cv_test["l2-mean"] - cv_test["l2-stdv"], color="blue", alpha=.1)
     # plt.fill_between(list(range(0, len(cv_train["l2-mean"]))), cv_train["l2-mean"] + cv_train["l2-stdv"], cv_train["l2-mean"] - cv_train["l2-stdv"], color="red", alpha=.1)
-    plt.title(plot_title)
+    plt.title(f"{plot_title}: {list(cv_train.keys())[0]}")
     plt.legend(["test", "train", "test_std", "train_std"])
     plt.tight_layout()
     plt.show()

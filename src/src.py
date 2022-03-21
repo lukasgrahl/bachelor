@@ -236,53 +236,65 @@ class ModelValidation:
         self.y_test = y_validate
         self.model = model
 
-        self.pred = None
+        self.y_pred = None
         self.resid = None
 
         self.resid_inv = None
-        self.pred_inv = None
+        self.y_pred_inv = None
         self.y_test_inv = None
 
         self.df_r = None
 
+        self.rmse = None
         self.mse = None
         self.mae = None
         self.r2 = None
 
         self._get_predictions()
         self._invers_trans_y()
-        pass
 
     def _get_predictions(self):
-        self.pred = self.model.predict(self.X_test)
+        self.y_pred = self.model.predict(self.X_test)
         pass
 
     def _invers_trans_y(self):
-        self.pred_inv = arr_inv_log_returns(self.pred)
+        self.y_pred_inv = arr_inv_log_returns(self.y_pred)
         self.y_test_inv = arr_inv_log_returns(self.y_test)
         pass
 
     def _get_resids(self):
-        self.resid = (self.y_test - self.pred).rename("residuals")
-        self.resid_inv = self.y_test_inv - self.pred_inv
+        self.resid = (self.y_test - self.y_pred).rename("residuals")
+        self.resid_inv = (self.y_test_inv - self.y_pred_inv).rename("inv_residuals")
         pass
 
-    def _plot_pred_vs_true(self):
+    def _plot_pred_vs_true(self,
+                           plot_inv: bool = False):
         fig, ax = plt.subplots(1, 1, figsize=(20, 5))
-        ax.plot(self.y_test_inv)
-        ax.plot(self.pred_inv)
+        if plot_inv:
+            ax.plot(self.y_test_inv)
+            ax.plot(self.y_pred_inv)
+        else:
+            ax.plot(self.y_test)
+            ax.plot(self.y_pred)
         plt.title("True vs. Predicted")
         plt.legend(["y_test", "y_pred"])
         plt.tight_layout()
         plt.show()
         return fig
 
-    def get_model_performance(self):
-        self.mse, self.mae, self.r2 = get_performance_metrics(self.y_test_inv, self.pred_inv)
-        fig = self._plot_pred_vs_true()
+    def get_model_performance(self,
+                              **kwargs):
+        """
+        Get model performance measures (rmse, mse, mae, r2) and plot y_test vs. y_true
+        :param kwargs: plot_inv: plot inverse transformed values
+        :return: plt.figure
+        """
+        self.rmse, self.mse, self.mae, self.r2 = get_performance_metrics(self.y_test, self.y_pred)
+        fig = self._plot_pred_vs_true(**kwargs)
 
         if self.print_results:
             print("Validation Scores")
+            print(f'root mean squared error: {self.rmse}')
             print(f'mean squared error: {self.mse}')
             print(f'mean absolute error: {self.mae}')
             print(f'R2: {self.r2}')
@@ -290,6 +302,11 @@ class ModelValidation:
 
     def analyse_resids(self,
                        **kwargs):
+        """
+        Plots and performs statistics tests (stationarity, normality, heteroskedasticity) on residuals
+        :param kwargs:
+        :return: booleans for: stationarity, normality, heteroskedasticity
+        """
         self._get_resids()
 
         stest = StatsTest(**kwargs, print_results=self.print_results)
@@ -299,11 +316,19 @@ class ModelValidation:
 
         return stationarity, normality, heteroskedasticity
 
-    def plot_learning_curve(self,
-                            scoring: str = "r2",
-                            n_splits: int = 5,
-                            max_train_size=None,
-                            test_size=None):
+    def _plot_learning_curve(self,
+                             scoring: str = "r2",
+                             n_splits: int = 5,
+                             max_train_size=None,
+                             test_size=None):
+        """
+        Plot learning curve for
+        :param scoring:
+        :param n_splits:
+        :param max_train_size:
+        :param test_size:
+        :return:
+        """
 
         tscv = TimeSeriesSplit(n_splits=n_splits, max_train_size=max_train_size, test_size=test_size)
         visualizer = LearningCurve(self.model, cv=tscv, random_state=random_state, scoring=scoring)
@@ -348,23 +373,22 @@ class ModelValidation:
         self.df_r = df_weekly.loc[df_weekly_sub.index].reset_index(drop=True).copy()
 
         self.df_r["sp_tot_pred_test"] = np.concatenate([np.array(list([np.nan] * len(self.X_train))),
-                                                        self.pred_inv]) * self.df_r[sp_true_vals]
+                                                        (self.y_pred + 1)]) * self.df_r[sp_true_vals]
 
-        self.df_r["sp_tot_pred_train"] = np.concatenate([arr_inv_log_returns(self.model.predict(self.X_train)),
-                                                         np.array(list([np.nan] * len(self.pred_inv)))]) * self.df_r[
-                                             sp_true_vals]
+        self.df_r["sp_tot_pred_train"] = np.concatenate([(self.model.predict(self.X_train) + 1),
+                                                         np.array(list([np.nan] * len(self.y_pred)))]) * self.df_r[sp_true_vals]
 
         self.df_r["sp_tot_pred_train"] = self.df_r["sp_tot_pred_train"].shift(1)
         self.df_r["sp_tot_pred_test"] = self.df_r["sp_tot_pred_test"].shift(1)
 
         fig, ax = plt.subplots(1, 1, figsize=(30, 8))
         ax.plot(self.df_r["sp_tot_pred_train"], marker="o", lw=.5, alpha=.3, color="blue")
-        ax.plot(self.df_r["sp_tot_pred_test"], marker="o", lw=.5, alpha=.5, color="red")
+        ax.plot(self.df_r["sp_tot_pred_test"], marker="o", lw=.5, alpha=.3, color="red")
         ax.plot(self.df_r[sp_true_vals], color="black", lw=.8)
         plt.title("True vs. predicted prices")
 
         if show_pred_only:
-            plt.xlim([len(self.df_r) - len(self.pred_inv), len(self.df_r)])
+            plt.xlim([len(self.df_r) - len(self.y_pred), len(self.df_r)])
             assert xlim is None, "show_pred_only and xlim are mutually exclusive"
         else:
             if xlim is not None:
@@ -372,9 +396,9 @@ class ModelValidation:
         plt.tight_layout()
         plt.show()
 
-        mse, mae, r2 = get_performance_metrics(self.df_r.loc[self.df_r.sp_tot_pred_test.dropna().index,
-                                                             sp_true_vals],
-                                               self.df_r.sp_tot_pred_test.dropna())
+        rmse, mse, mae, r2 = get_performance_metrics(self.df_r.loc[self.df_r.sp_tot_pred_test.dropna().index,
+                                                                   sp_true_vals],
+                                                     self.df_r.sp_tot_pred_test.dropna())
         if self.print_results:
             print("Validation Scores Test Data")
             print(f"mean squared error: {mse}")
@@ -423,6 +447,3 @@ class SKLearnWrap(BaseEstimator, RegressorMixin):
         if self.fit_intercept:
             X = add_constant(X, constant_value=1)
         return self.results_.predict(X)
-
-
-

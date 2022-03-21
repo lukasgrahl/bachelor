@@ -53,7 +53,7 @@ def arr_inv_log_returns(arr):
 
 
 def shift_var_relative_to_df(df_in,
-                             shift_var: list,
+                             shift_var,
                              new_var_name: list = None,
                              no_lags: list = [1]):
     df = df_in.copy()
@@ -236,10 +236,11 @@ def update_dict(dict_in: dict,
 
 def get_performance_metrics(y_true,
                             y_pred):
+    rmse = round(mean_squared_error(y_true, y_pred, squared=False), 10)
     mse = round(mean_squared_error(y_true, y_pred), 10)
     mae = round(mean_absolute_error(y_true, y_pred), 10)
     r2 = round(r2_score(y_true, y_pred), 10)
-    return mse, mae, r2
+    return rmse, mse, mae, r2
 
 
 @contextmanager
