@@ -121,6 +121,18 @@ def tts_data(df_in,
              random_split: bool = True,
              test_size: float = 0.3,
              reset_index: bool = False):
+    """
+
+    :param df_in:
+    :param y:
+    :param x:
+    :param add_const:
+    :param random_split:
+    :param test_size:
+    :param reset_index:
+    :return: X_train, X_test, y_train, y_test
+    """
+
     # Asumption: times series ordered past - future
 
     df = df_in.copy()

@@ -10,6 +10,7 @@ from scipy import stats
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.stats.diagnostic import het_white
+from statsmodels.stats.stattools import durbin_watson
 from statsmodels.tsa.stattools import adfuller
 from yellowbrick.model_selection import LearningCurve
 
@@ -206,6 +207,16 @@ class StatsTest:
 
         return bool_result
 
+    def arr_durbin_watson(self,
+                          resid):
+        pvalue = durbin_watson(resid)
+        is_test = 1.5 < pvalue < 2.5
+        if self.print_results:
+            print(f'Durbin watson test for first oder autocorrelation')
+            print(f'Test statistics: 1.5 < {round(pvalue, 3)} < 2.5')
+            print(f'First order autocorrlation is not present: : {is_test}')
+        return is_test
+
 
 class ModelValidation:
 
@@ -313,8 +324,10 @@ class ModelValidation:
         stationarity = stest.arr_stationarity_adfuller(self.resid)
         normality = stest.arr_test_normality(self.resid)
         heteroskedasticity = stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
+        print('\n')
+        d_watson = stest.arr_durbin_watson(self.resid)
 
-        return stationarity, normality, heteroskedasticity
+        return stationarity, normality, heteroskedasticity, d_watson
 
     def _plot_learning_curve(self,
                              scoring: str = "r2",
