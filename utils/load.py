@@ -102,12 +102,11 @@ def save_file(data,
 
 
 def save_model(model,
-               df_train,
-               data_dict,
-               fig_truefit,
-               fig_lcurve,
-               fig_prices,
-               model_dir,
+               df_train: pd.DataFrame,
+               data_dict: dict,
+               model_dir: str,
+               plt_figures: list,
+               fig_titles: list,
                **kwargs):
     model_name = data_dict["model_metrics"]["model_name"]
     timestamp = str(dt.datetime.utcnow())[:10]
@@ -126,12 +125,11 @@ def save_model(model,
         else:
             os.makedirs(file_path)
 
-        save_file(fig_truefit, file_name=f"{model_name_file}_fig_true_vs_fit.png",
-                  file_path=file_path, **kwargs)
-        save_file(fig_lcurve, file_name=f"{model_name_file}_fig_lcurve.png", file_path=file_path,
-                  **kwargs)
-        save_file(fig_prices, file_name=f"{model_name_file}_fig_prices.png", file_path=file_path,
-                  **kwargs)
+        # Save files
+        assert len(plt_figures) == len(fig_titles), 'Please align figure names and figures'
+        for i in range(0, len(plt_figures)):
+            save_file(plt_figures[i], file_name=f"{model_name_file}_{fig_titles[i]}.png",
+                      file_path=file_path, **kwargs)
 
         save_file(data=df_train, file_name=f"{model_name_file}_df.csv", file_path=file_path,
                   **kwargs)

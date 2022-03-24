@@ -7,16 +7,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+from scipy.stats import ttest_1samp
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.model_selection import TimeSeriesSplit
 from statsmodels.stats.diagnostic import het_white
 from statsmodels.stats.stattools import durbin_watson
+from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import adfuller
 from yellowbrick.model_selection import LearningCurve
 
 from settings import random_state
 from utils.plotting import plot_learning_curve, plot_lgbm_learning_curve
-from utils.utils import arr_inv_log_returns, add_constant, get_performance_metrics, suppress_cmd_print
+from utils.utils import arr_inv_log_returns, add_constant, get_performance_metrics, suppress_cmd_print, get_tcsv
 
 
 class StatsTest:
@@ -131,6 +133,21 @@ class StatsTest:
 
         return is_normal
 
+    def arr_ttest_1samp(self,
+                        arr,
+                        mean):
+        x = ttest_1samp(arr, 0)
+        stat = x[0]
+        pval = x[1]
+        is_test = pval < self.significance
+
+        if self.print_results:
+            print(f"TTest one sample for mean: {mean}")
+            print(f'Test statistics: {stat}')
+            print(f'Test pvalue: {pval}')
+            print(f'Population mean is equal to {mean}: {is_test}')
+        return is_test
+
     def df_test_stationarity(self,
                              df_in: pd.DataFrame,
                              cols: list,
@@ -144,7 +161,7 @@ class StatsTest:
         """
         stationary = []
         for col in cols:
-            is_stationary = self.arr_stationarity_adfuller(df_in[col], **kwargs)
+            is_stationary = self.arr_stationarity_adfuller(df_in[col], autolag="AIC", **kwargs)
             stationary.append(is_stationary)
 
         return dict(zip(cols, stationary))
@@ -262,31 +279,21 @@ class ModelValidation:
         self.r2 = None
 
         self._get_predictions()
-        self._invers_trans_y()
+        self._get_resids()
 
     def _get_predictions(self):
         self.y_pred = self.model.predict(self.X_test)
         pass
 
-    def _invers_trans_y(self):
-        self.y_pred_inv = arr_inv_log_returns(self.y_pred)
-        self.y_test_inv = arr_inv_log_returns(self.y_test)
-        pass
-
     def _get_resids(self):
         self.resid = (self.y_test - self.y_pred).rename("residuals")
-        self.resid_inv = (self.y_test_inv - self.y_pred_inv).rename("inv_residuals")
         pass
 
-    def _plot_pred_vs_true(self,
-                           plot_inv: bool = False):
+    def _plot_pred_vs_true(self):
+
         fig, ax = plt.subplots(1, 1, figsize=(20, 5))
-        if plot_inv:
-            ax.plot(self.y_test_inv)
-            ax.plot(self.y_pred_inv)
-        else:
-            ax.plot(self.y_test)
-            ax.plot(self.y_pred)
+        ax.plot(self.y_test)
+        ax.plot(self.y_pred)
         plt.title("True vs. Predicted")
         plt.legend(["y_test", "y_pred"])
         plt.tight_layout()
@@ -321,58 +328,24 @@ class ModelValidation:
         self._get_resids()
 
         stest = StatsTest(**kwargs, print_results=self.print_results)
+        print('\n')
         stationarity = stest.arr_stationarity_adfuller(self.resid)
+        print('\n')
         normality = stest.arr_test_normality(self.resid)
+        print('\n')
         heteroskedasticity = stest.df_heteroskedasticity_white(y_in=self.resid, X_in=self.X_test)
+        print('\n')
+        zero_mean = stest.arr_ttest_1samp(self.resid, mean=0)
         print('\n')
         d_watson = stest.arr_durbin_watson(self.resid)
 
-        return stationarity, normality, heteroskedasticity, d_watson
+        return stationarity, normality, heteroskedasticity, d_watson, zero_mean
 
-    def _plot_learning_curve(self,
-                             scoring: str = "r2",
-                             n_splits: int = 5,
-                             max_train_size=None,
-                             test_size=None):
-        """
-        Plot learning curve for
-        :param scoring:
-        :param n_splits:
-        :param max_train_size:
-        :param test_size:
-        :return:
-        """
+    def learning_curve(self,
+                       plot_title: str,
+                       scoring: str = "neg_mean_squared_error"):
 
-        tscv = TimeSeriesSplit(n_splits=n_splits, max_train_size=max_train_size, test_size=test_size)
-        visualizer = LearningCurve(self.model, cv=tscv, random_state=random_state, scoring=scoring)
-        visualizer.fit(self.X_train, self.y_train)
-        plt.tight_layout()
-        visualizer.show()
-        pass
-
-    def sm_learning_curve(self,
-                          plot_title: str,
-                          scoring: str = "neg_mean_squared_error",
-                          n_splits: int = 5):
-        tscv = TimeSeriesSplit(n_splits=n_splits)
-        fig = plot_learning_curve(self.model, plot_title, self.X_test, self.y_test, cv=tscv, scoring=scoring)
-        return fig
-
-    def lgbm_learning_curve(self,
-                            params: dict,
-                            lgb_train: lightgbm.Dataset,
-                            lgb_test: lightgbm.Dataset,
-                            plot_title: str,
-                            n_splits: int = 5,
-                            suppress_lgb_print_output: bool = True):
-
-        plot_title = f"{plot_title} metric: {params['metric'][0]}"
-
-        if suppress_lgb_print_output:
-            with suppress_cmd_print():
-                fig = plot_lgbm_learning_curve(params, lgb_train, lgb_test, plot_title, n_splits)
-        else:
-            fig = plot_lgbm_learning_curve(params, lgb_train, lgb_test, plot_title, n_splits)
+        fig = self.model.plot_learning_curve(plot_title, scoring=scoring)
         return fig
 
     def plot_results_on_price_scale(self,
@@ -389,7 +362,8 @@ class ModelValidation:
                                                         (self.y_pred + 1)]) * self.df_r[sp_true_vals]
 
         self.df_r["sp_tot_pred_train"] = np.concatenate([(self.model.predict(self.X_train) + 1),
-                                                         np.array(list([np.nan] * len(self.y_pred)))]) * self.df_r[sp_true_vals]
+                                                         np.array(list([np.nan] * len(self.y_pred)))]) * self.df_r[
+                                             sp_true_vals]
 
         self.df_r["sp_tot_pred_train"] = self.df_r["sp_tot_pred_train"].shift(1)
         self.df_r["sp_tot_pred_test"] = self.df_r["sp_tot_pred_test"].shift(1)
@@ -434,8 +408,8 @@ class SKLearnWrap(BaseEstimator, RegressorMixin):
         self.model_class = model_class
         self.fit_intercept = fit_intercept
 
-        self.model_ = None
-        self.results_ = None
+        self.model = None
+        self.results = None
         pass
 
     def fit(self, X, y):
@@ -447,8 +421,8 @@ class SKLearnWrap(BaseEstimator, RegressorMixin):
         """
         if self.fit_intercept:
             X = add_constant(X, constant_value=1)
-        self.model_ = self.model_class(y, X)
-        self.results_ = self.model_.fit()
+        self.model = self.model_class(y, X)
+        self.trained_model = self.model.fit()
         return self
 
     def predict(self, X):
@@ -459,4 +433,274 @@ class SKLearnWrap(BaseEstimator, RegressorMixin):
         """
         if self.fit_intercept:
             X = add_constant(X, constant_value=1)
-        return self.results_.predict(X)
+        return self.trained_model.predict(X)
+
+
+class SeasonalTrend:
+
+    def __init__(self,
+                 df,
+                 time_series,
+                 season_col,
+                 intra_season_period_col,
+                 seasonal_period,
+                 show_fig: bool = False):
+
+        """
+        Class is dividing data into season and trend data
+        :param df: data
+        :param time_series: col on which seasonal splitting is performed
+        :param season_col: column which indicates the season (year, quater, month, week): constant for each season
+        :param intra_season_period_col: column which indicates the intra seasonal periods (week, day)
+        :param seasonal_period: number of intra season periods by season
+        :param show_fig: show plot
+        """
+
+        self.df = df.copy()
+        self.time_series = time_series
+        self.season_col = season_col
+        self.intra_season_period_col = intra_season_period_col
+        self.seasonal_period = seasonal_period
+
+        self.show_fig = show_fig
+
+        self.fig = None
+        pass
+
+    def _filter_for_complete_seasons(self):
+        _ = self.df.groupby(self.season_col)[self.intra_season_period_col].count() == self.seasonal_period
+        _ = _[_].index
+
+        self.df = self.df[self.df[self.season_col].isin(_)]
+        print(f'\n Len of complete weeks in X_train: {len(self.df)}')
+        pass
+
+    def split_time_series(self):
+        self._filter_for_complete_seasons()
+        # create statsmodel seasonality object
+        sd = seasonal_decompose(self.df[self.time_series], period=self.seasonal_period)
+        self.fig = sd.plot()
+
+        if self.show_fig:
+            plt.show()
+        else:
+            plt.close()
+
+        # get seasonality by weekday
+        self.seasonal = sd.seasonal
+        self.trend = sd.trend
+        self.df["seasonal"] = self.seasonal
+        self.dict_map_sasonal = dict(zip(self.df.groupby(self.intra_season_period_col).seasonal.first().index,
+                                         self.df.groupby(self.intra_season_period_col).seasonal.first().values))
+        pass
+
+
+class ExpandingPredictionOLS:
+
+    def __init__(self,
+                 model_in,
+                 X_train,
+                 y_train,
+                 X_test,
+                 y_test):
+
+        self.training_index = None
+        self.testing_index = None
+        self.model = None
+        self.y_pred = None
+
+        self.model_in = model_in
+        self.X_train = X_train.copy()
+        self.y_train = y_train.copy()
+        self.X_test = X_test.copy()
+        self.y_test = y_test.copy()
+
+        self.X = pd.concat([X_train,
+                            X_test])
+        self.y = pd.concat([y_train,
+                            y_test])
+
+        if 'intercept' in self.X.columns:
+            self.X.drop('intercept', axis=1, inplace=True)
+
+    def predict(self,
+                X_,
+                **kwargs):
+        self.training_index, self.testing_index = get_tcsv(self.X, self.y, n_splits=len(self.X_test))
+        self.y_pred = []
+
+        for i in range(0, len(self.training_index)):
+            model = self.model_in
+
+            model.fit(self.X.iloc[self.training_index[i]], self.y.iloc[self.training_index[i]])
+            pred = model.predict(self.X.iloc[self.testing_index[i]]).values[0]
+
+            self.y_pred.append(pred)
+
+            if i == 0:
+                self.model = model
+
+        return self.y_pred
+
+    def plot_learning_curve(self,
+                            plot_title: str,
+                            scoring: str):
+        if self.model is None:
+            self.predict('_')
+
+        plot_title = f"{plot_title} metric: {scoring}"
+
+        tscv = TimeSeriesSplit(n_splits=60)
+        fig = plot_learning_curve(self.model, plot_title, self.X_test, self.y_test, cv=tscv, scoring=scoring)
+        return fig
+
+
+class ExpandingPredictionLGB:
+
+    def __init__(self,
+                 model_in,
+                 X_train,
+                 y_train,
+                 X_test,
+                 y_test,
+                 params: dict,
+                 categorical_features: list,
+                 early_stopping_rounds: int = 10000,
+                 suppress_lgb_print_output: bool = True):
+
+        self.lgb_test = None
+        self.lgb_train = None
+        self.eval_results = None
+        self.model = None
+        self.y_pred = None
+        self.y_true = None
+        self.categorical_features = categorical_features
+        self.early_stopping = early_stopping_rounds
+        self.params = params
+        self.model_in = model_in
+        self.X_train = X_train.copy()
+        self.y_train = y_train.copy()
+        self.X_test = X_test.copy()
+        self.y_test = y_test.copy()
+        self.suppress_lgb_print_output = suppress_lgb_print_output
+
+        self.X = pd.concat([X_train,
+                            X_test])
+        self.y = pd.concat([y_train,
+                            y_test])
+
+    def predict(self,
+                X_,
+                **kwargs):
+        self.training_index, self.testing_index = get_tcsv(self.X, self.y, n_splits=len(self.X_test))
+        self.y_pred = []
+        self.y_true = []
+
+        self.eval_results = {}
+
+        for i in range(0, len(self.training_index)):
+            model = self.model_in
+            _eval_results = {}
+
+            if self.suppress_lgb_print_output:
+                with suppress_cmd_print():
+                    lgb_train = lightgbm.Dataset(self.X.iloc[self.training_index[i]],
+                                                 self.y.iloc[self.training_index[i]],
+                                                 categorical_feature=self.categorical_features,
+                                                 free_raw_data=False)
+
+                    lgb_test = lightgbm.Dataset(self.X.iloc[self.testing_index[i]],
+                                                self.y.iloc[self.testing_index[i]],
+                                                categorical_feature=self.categorical_features,
+                                                free_raw_data=False,
+                                                reference=lgb_train)
+
+                    model_ = lightgbm.train(self.params,
+                                            lgb_train,
+                                            valid_sets=[lgb_test, lgb_train],
+                                            callbacks=[lightgbm.early_stopping(self.early_stopping),
+                                                       lightgbm.record_evaluation(_eval_results)])
+            self.eval_results[f'eval_results_{i}'] = _eval_results
+
+            pred = model_.predict(self.X.iloc[self.testing_index[i]])
+            self.y_pred.append(pred[0])
+            self.y_true.append(self.y.iloc[self.testing_index[i]])
+
+            if i == 0:
+                self.model = model_
+                self.lgb_train = lightgbm.Dataset(self.X_train,
+                                                  self.y_train,
+                                                  categorical_feature=self.categorical_features,
+                                                  free_raw_data=False)
+
+                self.lgb_test = lightgbm.Dataset(self.X_test,
+                                                 self.y_test,
+                                                 categorical_feature=self.categorical_features,
+                                                 free_raw_data=False)
+
+        return self.y_pred
+
+    def plot_learning_curve(self,
+                            plot_title: str,
+                            **kwargs):
+
+        if 'scoring' in kwargs:
+            kwargs.pop('scoring')
+
+        if self.model is None:
+            self.predict('_')
+
+        plot_title = f"{plot_title} metric: {self.model.params['metric'][0]}"
+
+        if self.suppress_lgb_print_output:
+            with suppress_cmd_print():
+                fig = plot_lgbm_learning_curve(self.params,
+                                               self.lgb_train,
+                                               self.lgb_test,
+                                               plot_title,
+                                               n_splits=(len(self.X_test) - 2))
+                return fig
+        else:
+            fig = plot_learning_curve(self.params,
+                                      self.lgb_train,
+                                      self.lgb_test,
+                                      plot_title,
+                                      n_splits=(len(self.X_test) - 2))
+            return fig
+
+
+class RandomWalk:
+
+    def __init__(self,
+                 X_train,
+                 X_test):
+        self.X_train = X_train
+        self.X_test = X_test
+
+        self.X = pd.concat([X_train, X_test])
+        self.y_pred = None
+        pass
+
+    def _test_zero_mean(self):
+        stest = StatsTest(print_results=True)
+        is_test = stest.arr_ttest_1samp(self.X, mean=0)
+        is_test = is_test[0]
+        print('\n')
+        print('Testing for zero mean')
+        print(f'Time series has a zero mean: {is_test}')
+        print(f'Random walk requires a drift: {~is_test}')
+        pass
+
+    def predict(self,
+                X_):
+        self._test_zero_mean()
+
+        self.y_pred = self.X_test.values.reshape(-1)
+        return self.y_pred
+
+    def plot_learning_curve(self,
+                            plot_title: None,
+                            **kwargs):
+        if 'scoring' in kwargs.keys():
+            kwargs.pop('scoring')
+        return None

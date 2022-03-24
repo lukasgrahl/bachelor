@@ -6,18 +6,22 @@ import datetime as dt
 from contextlib import contextmanager
 import sys, os
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, TimeSeriesSplit
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 import statsmodels.api as sm
 
 from settings import random_state
-from utils.plotting import corr_plot
 
 
 # data transformation
-def translate_neg_dist(arr):
+def arr_translate_neg_dist(arr):
+    """
+    Checks whether array contains negative data and translates negative distribution into positive space
+    :param arr: data arr
+    :return: boll if translated, translated array
+    """
     if min(arr.dropna()) <= 0:
         return True, arr + (abs(arr.min()) + 1)
     else:
@@ -25,8 +29,17 @@ def translate_neg_dist(arr):
     pass
 
 
+def arr_ff_to_log(arr: pd.Series):
+    """
+    Log transform fama french factors according to 'np.log(1 +(ff/100))', as they are discret returns * 100
+    :param arr: ff_factor array
+    :return: ff_factor array as log return
+    """
+    return None, arr.apply(lambda x: np.log(1 + (x / 100)))
+
+
 def arr_log_transform(arr: pd.Series):
-    is_trans, arr = translate_neg_dist(arr)
+    is_trans, arr = arr_translate_neg_dist(arr)
     return is_trans, np.log(arr)
 
 
@@ -47,9 +60,10 @@ def df_transform(df_in: pd.DataFrame,
 
     return df, dist_translation, log_returns
 
+
 def arr_log_return(arr: pd.Series):
     # Assumption, df is ordered past to future
-    is_trans, arr = translate_neg_dist(arr)
+    is_trans, arr = arr_translate_neg_dist(arr)
     return is_trans, np.log(1 + arr.pct_change())
 
 
@@ -260,6 +274,16 @@ def get_performance_metrics(y_true,
     mae = round(mean_absolute_error(y_true, y_pred), 10)
     r2 = round(r2_score(y_true, y_pred), 10)
     return rmse, mse, mae, r2
+
+
+def get_tcsv(X, y, n_splits: int, test_size: int = 1, gap: int = 0):
+    training_index = []
+    testing_index = []
+    tscv = TimeSeriesSplit(n_splits=n_splits, test_size=test_size, gap=gap)
+    for train_ind, test_ind in tscv.split(X, y):
+        training_index.append(train_ind)
+        testing_index.append(test_ind)
+    return training_index, testing_index
 
 
 @contextmanager
