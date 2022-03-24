@@ -142,3 +142,8 @@ bachelor_env/*
 # file
 test.py
 notebooks/03-KS_LZ_TRAIN_LGB_DeltaMed_perc.ipynb
+notebooks/3.3-lgbm_class.ipynb
+notebooks/Z-KS_LZ_TRAIN_LGB_DeltaMed_perc.ipynb
+notebooks/Z-Linear Regression Project - Solutions.ipynb
+notebooks/Z3.1-ols_model-Copy1.ipynb
+notebooks/2.2-exploratory_anlaysis.ipynb
