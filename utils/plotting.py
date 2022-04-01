@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 
 import seaborn as sns
 from sklearn.model_selection import learning_curve, TimeSeriesSplit
+from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
+from statsmodels.tsa.stattools import pacf, acf
 
 
 def rand_jitter(arr):
@@ -98,6 +100,23 @@ def corr_plot(x,
 
 
 # cross corr
+def auto_corr(arr,
+              no_lags: int = 10,
+              partial: bool = False,
+              show_fig: bool = True):
+    if partial:
+        corr = pacf(arr, nlags=no_lags)
+    else:
+        corr = acf(arr, nlags=no_lags)
+
+    if show_fig:
+        if partial:
+            plot_pacf(arr, lags=no_lags, method='ywm')
+        else:
+            plot_acf(arr, lags=no_lags)
+
+    return corr
+
 def cross_corr(arr_x,
                arr_y,
                no_lags: int = 10,

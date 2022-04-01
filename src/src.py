@@ -94,6 +94,7 @@ class StatsTest:
         test = adfuller(arr, **kwargs)
         pvalue = test[1]
         test_stat = test[0]
+        no_lags = test[2]
         is_stationary = pvalue < self.significance
 
         self._line_plot(arr, is_stationary)
@@ -103,6 +104,7 @@ class StatsTest:
             print(f"P-Values: {pvalue}")
             print(f"Test-stats: {test_stat}")
             print(f"Time series is stationary: {is_stationary}")
+            print(f'Number of lags used: {no_lags}')
             pass
         return is_stationary
 
@@ -456,6 +458,7 @@ class SeasonalTrend:
         :param show_fig: show plot
         """
 
+        self.seasonal_estimator = None
         self.df = df.copy()
         self.time_series = time_series
         self.season_col = season_col
@@ -465,7 +468,6 @@ class SeasonalTrend:
         self.show_fig = show_fig
 
         self.fig = None
-        pass
 
     def _filter_for_complete_seasons(self):
         _ = self.df.groupby(self.season_col)[self.intra_season_period_col].count() == self.seasonal_period
@@ -478,8 +480,8 @@ class SeasonalTrend:
     def split_time_series(self):
         self._filter_for_complete_seasons()
         # create statsmodel seasonality object
-        sd = seasonal_decompose(self.df[self.time_series], period=self.seasonal_period)
-        self.fig = sd.plot()
+        self.seasonal_estimator = seasonal_decompose(self.df[self.time_series], period=self.seasonal_period)
+        self.fig = self.seasonal_estimator.plot()
 
         if self.show_fig:
             plt.show()
@@ -487,8 +489,8 @@ class SeasonalTrend:
             plt.close()
 
         # get seasonality by weekday
-        self.seasonal = sd.seasonal
-        self.trend = sd.trend
+        self.seasonal = self.seasonal_estimator.seasonal
+        self.trend = self.seasonal_estimator.trend
         self.df["seasonal"] = self.seasonal
         self.dict_map_sasonal = dict(zip(self.df.groupby(self.intra_season_period_col).seasonal.first().index,
                                          self.df.groupby(self.intra_season_period_col).seasonal.first().values))
@@ -550,7 +552,7 @@ class ExpandingPredictionOLS:
 
         plot_title = f"{plot_title} metric: {scoring}"
 
-        tscv = TimeSeriesSplit(n_splits=60)
+        tscv = TimeSeriesSplit()
         fig = plot_learning_curve(self.model, plot_title, self.X_test, self.y_test, cv=tscv, scoring=scoring)
         return fig
 

@@ -38,19 +38,28 @@ def arr_ff_to_log(arr: pd.Series):
     return None, arr.apply(lambda x: np.log(1 + (x / 100)))
 
 
-def arr_log_transform(arr: pd.Series):
-    is_trans, arr = arr_translate_neg_dist(arr)
-    return is_trans, np.log(arr)
+def arr_log_transform(arr: pd.Series,
+                      no_logs: int = 1,
+                      **kwargs):
+    dist_trans = []
+    result = arr.copy()
+    for i in range(0, no_logs):
+        is_trans, result = arr_translate_neg_dist(result)
+        print(i)
+        result = np.log(result)
+        dist_trans.append(is_trans)
+    return dist_trans, np.log(arr)
 
 
 def df_transform(df_in: pd.DataFrame,
                  cols: list,
-                 func):
+                 func,
+                 **kwargs):
     df = df_in.copy()
     dist_trans = []
 
     for col in cols:
-        is_trans, df[col] = func(df[col])
+        is_trans, df[col] = func(df[col], **kwargs)
         dist_trans.append(is_trans)
 
     dist_translation = dict(zip(cols, dist_trans))
