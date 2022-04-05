@@ -152,7 +152,11 @@ cast_dict = {
     'ff_M_RF_lag6': float,
     'ff_M_RF_lag7': float,
     'ff_M_RF_lag8': float,
-    'ff_M_RF_lag9': float
+    'ff_M_RF_lag9': float,
+    'macd': float,
+    'macdh': float,
+    'macds': float,
+    'williamsr': float
 }
 
 

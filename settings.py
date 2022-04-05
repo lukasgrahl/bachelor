@@ -7,3 +7,4 @@ OUT_DATA_DIR = os.path.join(PROJECT_DIR, "data", "3_out")
 OUT_MODEL_DIR = os.path.join(PROJECT_DIR, "data", "3_out", "models")
 
 random_state = 101
+test_size = .1

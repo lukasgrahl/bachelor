@@ -50,8 +50,10 @@ def corr_heatmap(df: pd.DataFrame,
                 cbar=False,
                 **kwargs)
     plt.tight_layout()
-    if not show_fig:
-        plt.close(fig)
+    # if not show_fig:
+    #     plt.close(fig)
+    return fig
+
 
 
 def kde_plot(arr,
@@ -116,6 +118,7 @@ def auto_corr(arr,
             plot_acf(arr, lags=no_lags)
 
     return corr
+
 
 def cross_corr(arr_x,
                arr_y,

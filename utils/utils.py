@@ -45,7 +45,6 @@ def arr_log_transform(arr: pd.Series,
     result = arr.copy()
     for i in range(0, no_logs):
         is_trans, result = arr_translate_neg_dist(result)
-        print(i)
         result = np.log(result)
         dist_trans.append(is_trans)
     return dist_trans, np.log(arr)
@@ -129,6 +128,13 @@ def add_constant(df_in,
     df = df_in.copy()
     df[constant_name] = list([constant_value] * len(df))
     return df
+
+
+def get_williamsr(high, low, close, lookback):
+    highh = high.rolling(lookback).max()
+    lowl = low.rolling(lookback).min()
+    wr = -100 * ((highh - close) / (highh - lowl))
+    return wr
 
 
 # cut & sort data
@@ -331,3 +337,27 @@ def lag_correl(df,
         corr_list.append([col, highest_lag])
 
     return corr_list
+
+
+def _roll_pred(mod,
+              X_test,
+              y_test,
+              X_train,
+              y_train):
+    X_test = add_constant(X_test)
+    X = pd.concat([X_train, X_test], axis=0)
+    y = pd.concat([y_train, y_test], axis=0)
+    preds = []
+
+    for i in range(0, len(X_test) + 1):
+        train_start = len(X_train) - len(X_train) + i
+        train_end = len(X_train) + i
+        test = i
+
+        # pr'int(len(X.iloc[train_start: train_end]))
+        mod_ = mod(y.iloc[train_start: train_end], X.iloc[train_start: train_end])
+        mod_t_ = mod_.fit()
+
+        preds.append(mod_t_.predict(add_constant(X).iloc[test])[0])
+
+    return preds
