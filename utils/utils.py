@@ -312,6 +312,19 @@ def suppress_cmd_print():
             sys.stdout = old_stdout
 
 
+def is_outlier(arr: pd.Series,
+               iqr_factor: int = 3):
+    median = np.median(arr)
+    q1 = np.percentile(arr, 25)
+    q3 = np.percentile(arr, 75)
+    iqr = q3 - q1
+
+    lower_bound = median - iqr_factor * iqr
+    upper_bound = median + iqr_factor * iqr
+
+    return arr.apply(lambda x: ~(lower_bound < x < upper_bound))
+
+
 # old func
 def lag_correl(df,
                cols,

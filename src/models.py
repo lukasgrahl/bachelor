@@ -291,6 +291,8 @@ class ExpandingPredictionARIMA:
         self.model_in = model_in
         self.X_train = X_train.copy()
         self.X_test = X_test.copy()
+        self.y_test = y_test
+        self.y_train = y_train
 
         self.X = pd.concat([X_train,
                             X_test])
@@ -326,9 +328,11 @@ class RandomWalk:
 
     def __init__(self,
                  X_train,
-                 X_test):
+                 X_test,
+                 y_test):
         self.X_train = X_train
         self.X_test = X_test
+        self.y_test = y_test
 
         self.X = pd.concat([X_train, X_test])
         self.y_pred = None
