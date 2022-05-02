@@ -183,6 +183,7 @@ def plot_lgbm_learning_curve(params: dict,
     cv_train = lightgbm.cv(params,
                            lgb_train,
                            folds=tscv)
+    print(lgb_test)
     cv_test = lightgbm.cv(params,
                           lgb_test,
                           folds=tscv)

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
 from scipy.stats import ttest_1samp
-from statsmodels.stats.diagnostic import het_white
+from statsmodels.stats.diagnostic import het_white, acorr_ljungbox
 from statsmodels.stats.stattools import durbin_watson
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import adfuller
@@ -130,16 +130,38 @@ class StatsTest:
     def arr_ttest_1samp(self,
                         arr,
                         mean):
-        x = ttest_1samp(arr, 0)
+        x = ttest_1samp(arr, mean)
+        print(x)
         stat = x[0]
         pval = x[1]
-        is_test = pval < self.significance
+        is_test = pval > self.significance
 
         if self.print_results:
             print(f"TTest one sample for mean: {mean}")
             print(f'Test statistics: {stat}')
             print(f'Test pvalue: {pval}')
             print(f'Population mean is equal to {mean}: {is_test}')
+        return is_test
+
+    def arr_ljungbox(self, arr, lags: int):
+
+        res = acorr_ljungbox(arr, lags=lags) # return_df=True)
+        pvalue = res.lb_pvalue.values.min()
+        # tstats = res.lb_stat.loc[res.lb_pvalue.idxmin]
+        is_test = pvalue < self.significance
+
+        if self.plot:
+            plt.title("Ljung Box test significance by lag")
+            plt.plot(res.lb_pvalue)
+            plt.plot(list([self.significance] * len(res)))
+            plt.legend(['pvalue', 'sig'])
+
+        if self.print_results:
+            print('\nLjung Box test')
+            # print(f"Test stats: {tstats}")
+            print(f"Pvalue: {pvalue}")
+            print(f'H0 the residuals are idd can be rejected: {is_test}')
+
         return is_test
 
     def df_test_stationarity(self,
@@ -228,6 +250,45 @@ class StatsTest:
             print(f'First order autocorrlation is not present: : {is_test}')
         return is_test
 
+    def _anova_assumptions(self, *args):
+        for item in args:
+            assert (type(item) == pd.Series) | (type(item) == list) | (
+                        type(item) == np.array), 'args need to bo of type array'
+
+        norm_res = []
+        for item in args:
+            norm = stats.normaltest(item)
+            norm_res.append(norm)
+
+        lev = stats.levene(*args)
+
+        if lev.pvalue > self.significance:
+            print("\nLevene's of variance homogenity")
+            print(f"Samples have same variance: {lev.pvalue < self.significance}")
+            print(f"Pvalue: {lev.pvalue}")
+
+        for item, arr in zip(norm_res, args):
+            if item.pvalue > self.significance:
+                print("\nNormality test")
+                print(f"Sample {arr.name} is normally distributed {item.pvalue < self.significance}")
+                print(f"Pvalue: {item.pvalue}")
+
+        return lev, norm_res
+
+    def anova(self, *args):
+        self._anova_assumptions(*args, )
+        res = stats.f_oneway(*args)
+
+        is_sig = res.pvalue < self.significance
+
+        if self.print_results:
+            print('\nOne-way ANOVA')
+            print(f'ANOVA test statistics: {res.statistic}')
+            print(f'ANOVA pvalue: {res.pvalue}')
+            print(f'Difference in means exists: {is_sig}')
+
+        return is_sig
+
 
 class ModelValidation:
 
@@ -284,7 +345,7 @@ class ModelValidation:
         pass
 
     def _plot_pred_vs_true(self,
-        model_scores: str):
+                           model_scores: str):
 
         fig, ax = plt.subplots(1, 1, figsize=(20, 5))
         ax.plot(self.y_test)
@@ -333,9 +394,11 @@ class ModelValidation:
         print('\n')
         zero_mean = stest.arr_ttest_1samp(self.resid, mean=0)
         print('\n')
-        d_watson = stest.arr_durbin_watson(self.resid)
+        durbin_wats = stest.arr_durbin_watson(self.resid)
+        print('\n')
+        idd_ser = stest.arr_ljungbox(self.resid, lags=20)
 
-        return stationarity, normality, heteroskedasticity, d_watson, zero_mean
+        return stationarity, normality, heteroskedasticity, durbin_wats, zero_mean, idd_ser
 
     def learning_curve(self,
                        plot_title: str,
@@ -447,4 +510,26 @@ class SeasonalTrend:
         self.df["seasonal"] = self.seasonal
         self.dict_map_sasonal = dict(zip(self.df.groupby(self.intra_season_period_col).seasonal.first().index,
                                          self.df.groupby(self.intra_season_period_col).seasonal.first().values))
+        pass
+
+
+class ModelMetrics:
+
+    def __init__(self,
+                 dict_):
+        self._metrics = dict_["model_metrics"]
+
+        self.model_type = self._metrics["model_type"]
+        self.predicted = dict_["model_features"]["predicted"]
+        self.variables = self._metrics["variables"]
+        self.tinterval = self._metrics["tinterval"]
+        self.year_spread = self._metrics["year_spread"]
+        self.rmse = self._metrics["rmse"]
+        self.mse = self._metrics["mse"]
+        self.mae = self._metrics["mae"]
+        self.r2 = self._metrics["r2"]
+        self.y_pred = self._metrics['y_pred']
+        self.y_test = self._metrics['y_test']
+        self.residuals = self._metrics['y_test'] - self._metrics['y_pred']
+        self.y_prices = self._metrics['y_prices']
         pass

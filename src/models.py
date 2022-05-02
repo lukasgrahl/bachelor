@@ -160,7 +160,7 @@ class ExpandingPredictionLGB:
                  X_test,
                  y_test,
                  params: dict,
-                 categorical_features: list,
+                 # categorical_features: list,
                  early_stopping_rounds: int = 10000,
                  suppress_lgb_print_output: bool = True,
                  debug_single_pred: bool = False):
@@ -171,7 +171,7 @@ class ExpandingPredictionLGB:
         self.model = None
         self.y_pred = None
         self.y_true = None
-        self.categorical_features = categorical_features
+        # self.categorical_features = categorical_features
         self.early_stopping = early_stopping_rounds
         self.params = params
         self.model_in = model_in
@@ -203,12 +203,12 @@ class ExpandingPredictionLGB:
                 with suppress_cmd_print():
                     lgb_train = lightgbm.Dataset(self.X.iloc[self.training_index[i]],
                                                  self.y.iloc[self.training_index[i]],
-                                                 categorical_feature=self.categorical_features,
+                                                 # categorical_feature=self.categorical_features,
                                                  free_raw_data=False)
 
                     lgb_test = lightgbm.Dataset(self.X.iloc[self.testing_index[i]],
                                                 self.y.iloc[self.testing_index[i]],
-                                                categorical_feature=self.categorical_features,
+                                                # categorical_feature=self.categorical_features,
                                                 free_raw_data=False,
                                                 reference=lgb_train)
 
@@ -227,12 +227,12 @@ class ExpandingPredictionLGB:
                 self.model = model_
                 self.lgb_train = lightgbm.Dataset(self.X_train,
                                                   self.y_train,
-                                                  categorical_feature=self.categorical_features,
+                                                  # categorical_feature=self.categorical_features,
                                                   free_raw_data=False)
 
                 self.lgb_test = lightgbm.Dataset(self.X_test,
                                                  self.y_test,
-                                                 categorical_feature=self.categorical_features,
+                                                 # categorical_feature=self.categorical_features,
                                                  free_raw_data=False)
 
             if self.debug_single_pred:
@@ -262,9 +262,9 @@ class ExpandingPredictionLGB:
                                                n_splits=(len(self.X_test) - 2))
                 return fig
         else:
-            fig = plot_learning_curve(self.params,
-                                      self.lgb_train,
-                                      self.lgb_test,
+            fig = plot_lgbm_learning_curve(self.params,
+                                           self.lgb_train,
+                                           self.lgb_test,
                                       plot_title,
                                       n_splits=(len(self.X_test) - 2))
             return fig
@@ -329,10 +329,12 @@ class RandomWalk:
     def __init__(self,
                  X_train,
                  X_test,
-                 y_test):
+                 y_test,
+                 y_train):
         self.X_train = X_train
         self.X_test = X_test
         self.y_test = y_test
+        self.y_train = y_train
 
         self.X = pd.concat([X_train, X_test])
         self.y_pred = None
@@ -340,19 +342,23 @@ class RandomWalk:
 
     def _test_zero_mean(self):
         stest = StatsTest(print_results=True)
-        is_test = stest.arr_ttest_1samp(self.X, mean=0)
-        is_test = is_test[0]
+        is_test = stest.arr_ttest_1samp(self.y_train, mean=0)
+        is_test = is_test
         print('\n')
         print('Testing for zero mean')
         print(f'Time series has a zero mean: {is_test}')
         print(f'Random walk requires a drift: {~is_test}')
-        pass
+        return is_test
 
     def predict(self,
                 X_):
-        self._test_zero_mean()
+        is_zeromean = self._test_zero_mean()
+        if is_zeromean:
+            self.y_pred = list([0] * len(self.X_test))
+        else:
+            self.y_pred = list([self.y_train.mean()] * len(self.X_test))
+            print(f"\n Random walk with drift (mean return): {self.y_train.mean()}")
 
-        self.y_pred = self.X_test.values.reshape(-1)
         return self.y_pred
 
     def plot_learning_curve(self,
